@@ -3,6 +3,8 @@ import time
 from typing import TypedDict, List, Annotated
 from dotenv import load_dotenv
 
+os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
+
 from crewai import Agent, Task, Crew, Process, LLM
 from langgraph.graph import StateGraph, END, add_messages
 from rapidfuzz import fuzz
@@ -12,6 +14,8 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
+
+
 
 from tools import (
     fetch_stock_data,
@@ -50,7 +54,7 @@ fin_analyst = Agent(
 
 news_analyst = Agent(
     role="News & Sentiment Analyst",
-    goal="Analyze latest news for {ticker}",
+    goal="Analyze three latest news for {ticker}",
     backstory="Tracks market-moving headlines",
     tools=[fetch_news_and_sentiment],
     llm=llm,
@@ -87,23 +91,40 @@ performance_agent = Agent(
 # =========================
 financial_task = Task(
     description="""
-    Analyze valuation and growth for {ticker}.
+    Analyze the financial health of {ticker} using the tool data.
+
+    STRICT FORMAT:
+
+    1. Current Price:
+    2. Market Cap:
+    3. P/E Ratio:
+    4. Revenue Growth (%):
+    5. EBITDA Margin (%):
+
+    Then provide:
+    - Valuation Interpretation
+    - Growth Interpretation
+    - Profitability Interpretation
+    
 
     IMPORTANT:
-    - Clearly mention all metrics used.
-    - At the end, include a section:
-      "Source: Yahoo Finance (via yfinance)"
+    - Use actual numeric values from the tool.
+    - Do NOT give generic statements.
+    - Do NOT hallucinate data.
+    - Mention currency if available.
+    - End with:
+      Source: Yahoo Finance (via yfinance)
     """,
-    expected_output="Financial analysis with source citation",
+    expected_output="Structured financial report with numeric metrics",
     agent=fin_analyst
 )
 
-
 news_task = Task(
     description="""
-    Analyze news sentiment for {ticker}.
+    Analyze latest news sentiment for {ticker}.
 
     IMPORTANT:
+    - Give only 3 latest headlines.
     - For each headline, mention:
         Title
         Source
@@ -284,36 +305,48 @@ app = workflow.compile()
 # =========================
 # Run
 # =========================
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    print("\n### LangGraph + CrewAI Financial Multi-Agent System ###")
-    print("LangSmith tracing enabled.\n")
+#     print("\n### LangGraph + CrewAI Financial Multi-Agent System ###")
+#     print("LangSmith tracing enabled.\n")
 
-    while True:
+#     while True:
 
-        query = input("\nAsk your financial question: ").strip()
+#         query = input("\nAsk your financial question: ").strip()
 
-        if query.lower() in ["quit", "exit", "bye"]:
-            print("\n👋 Exiting chatbot.")
-            break
+#         if query.lower() in ["quit", "exit", "bye"]:
+#             print("\n👋 Exiting chatbot.")
+#             break
 
-        ticker = input("Enter company ticker (or press Enter): ").strip()
-        doc_path = input("Enter document path if any (or press Enter): ").strip()
+#         ticker = input("Enter company ticker (or press Enter): ").strip()
+#         doc_path = input("Enter document path if any (or press Enter): ").strip()
 
-        state: GraphState = {
-            "query": query,
-            "ticker": ticker,
-            "doc_path": doc_path,
-            "routes": [],
-            "outputs": []
-        }
+#         state: GraphState = {
+#             "query": query,
+#             "ticker": ticker,
+#             "doc_path": doc_path,
+#             "routes": [],
+#             "outputs": []
+#         }
 
-        result = app.invoke(state)
+#         result = app.invoke(state)
 
-        print("\n========================")
-        print("FINAL REPORT")
-        print("========================\n")
+#         print("\n========================")
+#         print("FINAL REPORT")
+#         print("========================\n")
 
-        for msg in result["outputs"]:
-            print(msg if isinstance(msg, str) else msg.content)
-            print()
+#         for msg in result["outputs"]:
+#             print(msg if isinstance(msg, str) else msg.content)
+#             print()
+
+def run_graph(query, ticker, doc_path):
+    state: GraphState = {
+        "query": query,
+        "ticker": ticker,
+        "doc_path": doc_path,
+        "routes": [],
+        "outputs": []
+    }
+    return app.invoke(state)
+
+

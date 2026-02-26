@@ -49,3 +49,6 @@ tqdm==4.67.1
 # Server (if deploying as API later)
 fastapi==0.110.0
 uvicorn==0.40.0
+
+#UI part
+streamlit
