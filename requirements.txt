@@ -1,10 +1,51 @@
-crewai
-langchain
-langchain-community
-langchain-core
-langchain_groq
-yfinance
-newsapi-python
-pandas
-python-dotenv
-rapidfuzz
+# crewai
+# langchain
+# langchain-community
+# langchain-core
+# langchain_groq
+# yfinance
+# newsapi-python
+# pandas
+# python-dotenv
+# rapidfuzz
+
+# Core Multi-Agent Framework
+crewai==1.8.1
+langgraph==1.0.7
+langchain==1.2.7
+langchain-core==1.2.7
+langchain-community==0.4.1
+langchain-text-splitters==1.1.0
+langsmith==0.6.4
+
+# LLM Provider
+openai==1.83.0
+litellm==1.81.1
+
+# Vector Store + Embeddings
+faiss-cpu==1.13.2
+sentence-transformers==5.2.2
+transformers==5.1.0
+torch==2.10.0
+
+# Financial & Data APIs
+yfinance==1.1.0
+newsapi-python==0.2.7
+requests==2.32.5
+pandas==3.0.0
+numpy==2.4.1
+
+# Document Processing (RAG)
+pypdfium2==5.3.0
+pdfplumber==0.11.9
+
+# Utilities
+python-dotenv==1.1.1
+RapidFuzz==3.14.3
+scikit-learn==1.8.0
+scipy==1.17.0
+tqdm==4.67.1
+
+# Server (if deploying as API later)
+fastapi==0.110.0
+uvicorn==0.40.0
