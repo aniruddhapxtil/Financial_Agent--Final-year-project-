@@ -1,0 +1,8 @@
+NVIDIA Internal Document (Test)
+
+Founded: 1993
+CEO: Jensen Huang
+Core Business: GPUs and AI accelerators
+
+Secret Project Code Name: Project Phoenix-X
+This project focuses on next-generation AI chips for autonomous systems.
