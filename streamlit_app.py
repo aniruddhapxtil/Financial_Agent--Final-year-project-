@@ -63,129 +63,237 @@
 
 #     st.markdown("---")
 
-#patil code
 import streamlit as st
 import tempfile
 import os
 import time
-from main import run_graph
+import yfinance as yf
+import numpy as np
+import pandas as pd
+import plotly.express as px
+
+from main import run_graph, extract_tickers
 import db_manager as db
 
+
 # =========================
-# 1. Page Configuration & Theme
+# Page Config
 # =========================
 st.set_page_config(
     page_title="Fin-Agent AI Pro",
     page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# Initialize the SQLite Database
 db.init_db()
 
-# Custom CSS for Gemini-style Chat UI
-st.markdown("""
-    <style>
-    /* Main background */
-    .stApp {
-        background-color: #131314;
-        color: #e3e3e3;
-    }
-    /* Sidebar styling */
-    section[data-testid="stSidebar"] {
-        background-color: #1e1f20 !important;
-    }
-    /* Chat Message Bubbles */
-    .stChatMessage {
-        background-color: #1e1f20;
-        border-radius: 15px;
-        padding: 15px;
-        margin-bottom: 10px;
-        border: 1px solid #333;
-    }
-    /* User Message distinct style */
-    div[data-testid="stChatMessageUser"] {
-        background-color: #2b2c2f;
-    }
-    /* Buttons */
-    .stButton>button {
-        border-radius: 20px;
-        text-transform: uppercase;
-        font-weight: bold;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 # =========================
-# 2. Session State Management
+# Custom UI Styling
+# =========================
+st.markdown("""
+<style>
+
+.stApp {
+    background-color: #131314;
+    color: #e3e3e3;
+}
+
+section[data-testid="stSidebar"] {
+    background-color: #1e1f20;
+}
+
+.stChatMessage {
+    background-color: #1e1f20;
+    border-radius: 15px;
+    padding: 15px;
+    border: 1px solid #333;
+}
+
+div[data-testid="stChatMessageUser"] {
+    background-color: #2b2c2f;
+}
+
+.stButton>button {
+    border-radius: 20px;
+    font-weight: bold;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+
+# =========================
+# Session State
 # =========================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+
 if "username" not in st.session_state:
     st.session_state.username = None
+
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
+
 # =========================
-# 3. Authentication Flow
+# Chart Functions
+# =========================
+def plot_price_chart(ticker):
+
+    stock = yf.Ticker(ticker)
+    hist = stock.history(period="6mo")
+
+    if hist.empty:
+        return
+
+    fig = px.line(
+        hist,
+        x=hist.index,
+        y="Close",
+        title=f"{ticker} Price Trend (6 Months)"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def plot_risk_pie(ticker):
+
+    stock = yf.Ticker(ticker)
+    hist = stock.history(period="1y")
+
+    if hist.empty:
+        return
+
+    returns = hist["Close"].pct_change().dropna()
+    volatility = np.std(returns) * np.sqrt(252)
+
+    risk_score = min(volatility * 100, 100)
+    safe_score = 100 - risk_score
+
+    df = pd.DataFrame({
+        "Category": ["Safe", "Risk"],
+        "Value": [safe_score, risk_score]
+    })
+
+    fig = px.pie(
+        df,
+        names="Category",
+        values="Value",
+        title=f"{ticker} Risk Distribution",
+        color="Category",
+        color_discrete_map={
+            "Safe": "green",
+            "Risk": "red"
+        }
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def plot_volatility_bar(tickers):
+
+    vol_data = {}
+
+    for ticker in tickers:
+
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="1y")
+
+        if hist.empty:
+            continue
+
+        returns = hist["Close"].pct_change().dropna()
+        volatility = np.std(returns) * np.sqrt(252)
+
+        vol_data[ticker] = volatility
+
+    if not vol_data:
+        return
+
+    df = pd.DataFrame.from_dict(
+        vol_data,
+        orient="index",
+        columns=["Volatility"]
+    )
+
+    fig = px.bar(
+        df,
+        x=df.index,
+        y="Volatility",
+        title="Volatility Comparison"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# =========================
+# Authentication Screen
 # =========================
 def auth_screen():
-    col1, col2, col3 = st.columns([1, 2, 1])
+
+    col1, col2, col3 = st.columns([1,2,1])
+
     with col2:
+
         st.title("📊 Fin-Agent AI")
-        st.subheader("Login to your Analysis Dashboard")
+        st.subheader("Login to your Financial Analysis Dashboard")
 
-        tab_login, tab_signup = st.tabs(["Sign In", "Create Account"])
+        tab1, tab2 = st.tabs(["Login", "Sign Up"])
 
-        with tab_login:
-            user = st.text_input("Username", key="login_user")
-            pw = st.text_input("Password", type="password", key="login_pw")
+        with tab1:
+
+            user = st.text_input("Username")
+            pw = st.text_input("Password", type="password")
 
             if st.button("Login"):
+
                 if db.check_user(user, pw):
+
                     st.session_state.logged_in = True
                     st.session_state.username = user
                     st.session_state.chat_history = db.get_chat_history(user)
-                    st.success(f"Welcome back, {user}!")
-                    st.rerun()
-                else:
-                    st.error("Invalid Username or Password")
 
-        with tab_signup:
-            new_user = st.text_input("Choose Username", key="reg_user")
-            new_pw = st.text_input("Choose Password", type="password", key="reg_pw")
-            confirm_pw = st.text_input("Confirm Password", type="password", key="reg_pw_conf")
+                    st.success("Login successful")
+                    st.rerun()
+
+                else:
+                    st.error("Invalid credentials")
+
+        with tab2:
+
+            new_user = st.text_input("Create Username")
+            new_pw = st.text_input("Create Password", type="password")
 
             if st.button("Register"):
-                if new_pw != confirm_pw:
-                    st.error("Passwords do not match")
-                elif len(new_pw) < 6:
-                    st.error("Password must be at least 6 characters")
+
+                if db.add_user(new_user, new_pw):
+                    st.success("Account created! Please login.")
                 else:
-                    if db.add_user(new_user, new_pw):
-                        st.success("Account created! You can now login.")
-                    else:
-                        st.error("Username already taken")
+                    st.error("Username already exists")
+
 
 # =========================
-# 4. Main Chat Interface
+# Main Chat UI
 # =========================
 def main_chat_screen():
 
     # -------- Sidebar --------
     with st.sidebar:
+
         st.image("https://img.icons8.com/fluency/96/artificial-intelligence.png", width=80)
+
         st.title("Settings")
-        st.write(f"Logged in: **{st.session_state.username}**")
+
+        st.write(f"Logged in as **{st.session_state.username}**")
 
         st.divider()
 
         st.subheader("Document Context (RAG)")
+
         uploaded_file = st.file_uploader(
-            "Upload PDF/TXT",
-            type=["pdf", "txt"],
-            help="Agents will query this document for answers."
+            "Upload PDF / TXT",
+            type=["pdf","txt"]
         )
 
         st.divider()
@@ -194,40 +302,50 @@ def main_chat_screen():
             st.session_state.chat_history = []
             st.rerun()
 
-        if st.button("Sign Out", type="secondary"):
+        if st.button("Sign Out"):
+
             st.session_state.logged_in = False
             st.session_state.username = None
             st.session_state.chat_history = []
+
             st.rerun()
 
-    # -------- Chat Area --------
-    st.title("Financial Multi-Agent Analyst")
-    st.caption("Powered by LangGraph, CrewAI, and NVIDIA NIMs")
 
-    # Display Chat History
+    # -------- Chat Header --------
+    st.title("Financial Multi-Agent Analyst")
+    st.caption("LangGraph + CrewAI + NVIDIA NIM")
+
+
+    # -------- Chat History --------
     for message in st.session_state.chat_history:
+
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # -------- Chat Input --------
-    if prompt := st.chat_input("What would you like to analyze today?"):
 
-        # Store user message
-        st.session_state.chat_history.append({"role": "user", "content": prompt})
-        db.save_message(st.session_state.username, "user", prompt)
+    # -------- Chat Input --------
+    if prompt := st.chat_input("Ask about any stock..."):
+
+        st.session_state.chat_history.append({
+            "role":"user",
+            "content":prompt
+        })
+
+        db.save_message(st.session_state.username,"user",prompt)
 
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # -------- Assistant Response --------
+
         with st.chat_message("assistant"):
 
-            with st.spinner("Agents are analyzing market data..."):
+            with st.spinner("Agents analyzing market data..."):
 
                 doc_path = ""
 
                 if uploaded_file:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp:
+
+                    with tempfile.NamedTemporaryFile(delete=False) as tmp:
                         tmp.write(uploaded_file.read())
                         doc_path = tmp.name
 
@@ -237,26 +355,32 @@ def main_chat_screen():
 
                     full_response = ""
 
-                    for output in result.get("outputs", []):
-                        text = output if isinstance(output, str) else getattr(output, "content", str(output))
+                    for output in result.get("outputs",[]):
+
+                        text = output if isinstance(output,str) else getattr(output,"content",str(output))
+
                         full_response += f"{text}\n\n---\n\n"
 
                     if not full_response:
-                        full_response = "Agents completed the task but returned no specific text output."
+                        full_response = "No response generated."
 
-                    # -------- STREAMING OUTPUT --------
+
+                    # Streaming effect
                     placeholder = st.empty()
-                    streamed_text = ""
+                    streamed = ""
 
                     for word in full_response.split():
-                        streamed_text += word + " "
-                        placeholder.markdown(streamed_text)
+
+                        streamed += word + " "
+                        placeholder.markdown(streamed)
+
                         time.sleep(0.02)
 
-                    # Save assistant response
-                    st.session_state.chat_history.append(
-                        {"role": "assistant", "content": full_response}
-                    )
+
+                    st.session_state.chat_history.append({
+                        "role":"assistant",
+                        "content":full_response
+                    })
 
                     db.save_message(
                         st.session_state.username,
@@ -264,16 +388,44 @@ def main_chat_screen():
                         full_response
                     )
 
+
+                    # =========================
+                    # Charts Section
+                    # =========================
+
+                    tickers = extract_tickers(prompt)
+
+                    st.divider()
+                    st.subheader("📊 Market Visualizations")
+
+                    for ticker in tickers:
+
+                        st.markdown(f"## {ticker}")
+
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            plot_price_chart(ticker)
+
+                        with col2:
+                            plot_risk_pie(ticker)
+
+                    if len(tickers) > 1:
+                        plot_volatility_bar(tickers)
+
+
                 except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
+
+                    st.error(f"Error: {str(e)}")
 
 
 # =========================
-# Execution Entry Point
+# Entry Point
 # =========================
 if __name__ == "__main__":
 
     if not st.session_state.logged_in:
         auth_screen()
+
     else:
         main_chat_screen()
