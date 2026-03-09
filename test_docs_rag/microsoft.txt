@@ -1,0 +1,9 @@
+Microsoft Internal Document (Test)
+
+Founded: 1975
+CEO: Satya Nadella
+Core Business: Cloud computing, enterprise software, and AI services
+
+Secret Project Code Name: Project Atlas-M
+This project focuses on building a new generation of AI-powered cloud infrastructure optimized for large language models and enterprise AI workloads.
+The goal is to enhance Azure’s capabilities in AI training and deployment.

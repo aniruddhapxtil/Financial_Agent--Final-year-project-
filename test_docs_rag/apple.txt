@@ -1,0 +1,9 @@
+Apple Internal Document (Test)
+
+Founded: 1976
+CEO: Tim Cook
+Core Business: Consumer electronics, software, and services
+
+Secret Project Code Name: Project Orion-A
+This project focuses on developing next-generation augmented reality (AR) devices integrated with Apple’s ecosystem. 
+The initiative aims to create lightweight AR glasses with AI-powered contextual computing.
