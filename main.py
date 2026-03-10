@@ -1,371 +1,3 @@
-
-
-# import os
-# import time
-# import re
-# from typing import TypedDict, List, Annotated
-# from dotenv import load_dotenv
-
-# os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
-
-# from crewai import Agent, Task, Crew, Process, LLM
-# from langgraph.graph import StateGraph, END, add_messages
-# from rapidfuzz import fuzz
-# from langsmith import traceable
-
-# from langchain_community.document_loaders import PyPDFLoader, TextLoader
-# from langchain_text_splitters import RecursiveCharacterTextSplitter
-# from langchain_community.vectorstores import FAISS
-# from langchain_community.embeddings import HuggingFaceEmbeddings
-
-# from tools import (
-#     fetch_stock_data,
-#     fetch_news_and_sentiment,
-#     fetch_risk_metrics
-# )
-
-# # =========================
-# # Environment
-# # =========================
-# load_dotenv()
-
-# # =========================
-# # LLM
-# # =========================
-# llm = LLM(
-#     model="meta/llama3-8b-instruct",
-#     api_key=os.getenv("NVIDIA_API_KEY"),
-#     base_url="https://integrate.api.nvidia.com/v1",
-#     provider="openai",
-#     temperature=0,
-#     max_tokens=300
-# )
-
-# # =========================
-# # AUTO TICKER DETECTION
-# # =========================
-# COMPANY_TICKER_MAP = {
-#     "nvidia": "NVDA",
-#     "apple": "AAPL",
-#     "microsoft": "MSFT",
-#     "google": "GOOGL",
-#     "alphabet": "GOOGL",
-#     "amazon": "AMZN",
-#     "tesla": "TSLA",
-#     "meta": "META",
-#     "facebook": "META",
-#     "netflix": "NFLX",
-#     "amd": "AMD",
-#     "intel": "INTC"
-# }
-
-# def extract_ticker_from_query(query: str):
-#     query_lower = query.lower()
-#     for company, ticker in COMPANY_TICKER_MAP.items():
-#         pattern = r"\b" + re.escape(company) + r"\b"
-#         if re.search(pattern, query_lower):
-#             return ticker
-#     ticker_pattern = re.findall(r"\b[A-Z]{2,5}\b", query)
-#     if ticker_pattern:
-#         return ticker_pattern[0]
-#     return None
-
-# # =========================
-# # Agents
-# # =========================
-# fin_analyst = Agent(
-#     role="Senior Financial Analyst",
-#     goal="Analyze {ticker} financial health",
-#     backstory="Expert in valuation and fundamentals",
-#     tools=[fetch_stock_data],
-#     llm=llm,
-#     allow_delegation=False
-# )
-
-# news_analyst = Agent(
-#     role="News & Sentiment Analyst",
-#     goal="Analyze ONLY three structured headlines for {ticker}",
-#     backstory="Tracks market-moving headlines concisely",
-#     tools=[fetch_news_and_sentiment],
-#     llm=llm,
-#     allow_delegation=False
-# )
-
-# risk_analyst = Agent(
-#     role="Risk Analyst",
-#     goal="Assess market risk for {ticker}",
-#     backstory="Quantitative risk specialist",
-#     tools=[fetch_risk_metrics],
-#     llm=llm,
-#     allow_delegation=False
-# )
-
-# rag_agent = Agent(
-#     role="Document Intelligence Agent",
-#     goal="Answer strictly from uploaded documents",
-#     backstory="Expert at document analysis",
-#     llm=llm,
-#     allow_delegation=False
-# )
-
-# # =========================
-# # Tasks
-# # =========================
-# financial_task = Task(
-#     description="""
-# Analyze financial health of {ticker} using ONLY tool data.
-
-# STRICT FORMAT:
-
-# 1. Current Price:
-# 2. Market Cap:
-# 3. P/E Ratio:
-# 4. Revenue Growth (%):
-# 5. EBITDA Margin (%):
-
-# Then provide:
-# - Valuation Interpretation
-# - Growth Interpretation
-# - Profitability Interpretation
-
-# IMPORTANT:
-# - Use exact numeric values from tool.
-# - Do NOT hallucinate.
-# - Keep output under 250 words.
-# - End with:
-#   Source: Yahoo Finance (via yfinance)
-# """,
-#     expected_output="Structured financial report",
-#     agent=fin_analyst
-# )
-
-# news_task = Task(
-#     description="""
-# Using ONLY structured tool output:
-
-# Return EXACTLY 3 headlines.
-
-# FORMAT:
-
-# 1. Title:
-#    Source:
-#    Published Date:
-
-# 2. Title:
-#    Source:
-#    Published Date:
-
-# 3. Title:
-#    Source:
-#    Published Date:
-
-# Then:
-# Overall Sentiment: (Positive / Neutral / Negative)
-
-# IMPORTANT:
-# - Do NOT summarize.
-# - Do NOT rewrite.
-# - Keep under 200 words.
-# """,
-#     expected_output="Structured news report",
-#     agent=news_analyst
-# )
-
-# risk_task = Task(
-#     description="""
-# Analyze risk metrics for {ticker} using tool data only.
-
-# Provide:
-# - Beta
-# - Volatility
-# - Key Risk Observations
-
-# Keep under 200 words.
-# """,
-#     expected_output="Risk analysis",
-#     agent=risk_analyst
-# )
-
-# # =========================
-# # Crews
-# # =========================
-# financial_crew = Crew(
-#     agents=[fin_analyst],
-#     tasks=[financial_task],
-#     process=Process.sequential
-# )
-
-# news_crew = Crew(
-#     agents=[news_analyst],
-#     tasks=[news_task],
-#     process=Process.sequential
-# )
-
-# risk_crew = Crew(
-#     agents=[risk_analyst],
-#     tasks=[risk_task],
-#     process=Process.sequential
-# )
-
-# # =========================
-# # Graph State
-# # =========================
-# class GraphState(TypedDict):
-#     query: str
-#     ticker: str
-#     doc_path: str
-#     routes: List[str]
-#     outputs: Annotated[List[str], add_messages]
-
-# # =========================
-# # Intent Detection
-# # =========================
-# def fuzzy_contains(query: str, keywords: list) -> bool:
-#     return any(fuzz.partial_ratio(query, kw) > 70 for kw in keywords)
-
-# financial_keywords = ["financial", "valuation", "revenue", "growth", "fundamental"]
-# news_keywords = ["news", "sentiment", "headline"]
-# risk_keywords = ["risk", "volatility", "beta"]
-
-# # =========================
-# # Orchestrator
-# # =========================
-# @traceable(name="Orchestrator")
-# def orchestrator_node(state: GraphState):
-#     q = state["query"].lower()
-#     routes = []
-
-#     if state["doc_path"]:
-#         routes.append("rag")
-#     if fuzzy_contains(q, financial_keywords):
-#         routes.append("financial")
-#     if fuzzy_contains(q, news_keywords):
-#         routes.append("news")
-#     if fuzzy_contains(q, risk_keywords):
-#         routes.append("risk")
-#     if not routes:
-#         routes = ["financial", "news", "risk"]
-#     return {"routes": routes}
-
-# # =========================
-# # Vector Cache
-# # =========================
-# vectorstore_cache = {}
-
-# # =========================
-# # Agent Nodes
-# # =========================
-# @traceable(name="Financial Agent")
-# def financial_node(state: GraphState):
-#     start = time.time()
-#     result = financial_crew.kickoff(inputs={"ticker": state["ticker"]})
-#     latency = round(time.time() - start, 2)
-#     return {"outputs": [f"📊 FINANCIAL ANALYSIS (Latency: {latency}s)\n{result}"]}
-
-# @traceable(name="News Agent")
-# def news_node(state: GraphState):
-#     start = time.time()
-#     result = news_crew.kickoff(inputs={"ticker": state["ticker"]})
-#     latency = round(time.time() - start, 2)
-#     return {"outputs": [f"📰 NEWS & SENTIMENT (Latency: {latency}s)\n{result}"]}
-
-# @traceable(name="Risk Agent")
-# def risk_node(state: GraphState):
-#     start = time.time()
-#     result = risk_crew.kickoff(inputs={"ticker": state["ticker"]})
-#     latency = round(time.time() - start, 2)
-#     return {"outputs": [f"⚠️ RISK ASSESSMENT (Latency: {latency}s)\n{result}"]}
-
-# @traceable(name="RAG Agent")
-# def rag_node(state: GraphState):
-#     start = time.time()
-#     loader = PyPDFLoader(state["doc_path"]) if state["doc_path"].endswith(".pdf") else TextLoader(state["doc_path"])
-#     docs = loader.load()
-#     splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=80)
-#     chunks = splitter.split_documents(docs)
-
-#     if state["doc_path"] in vectorstore_cache:
-#         vectorstore = vectorstore_cache[state["doc_path"]]
-#     else:
-#         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-#         vectorstore = FAISS.from_documents(chunks, embeddings)
-#         vectorstore_cache[state["doc_path"]] = vectorstore
-
-#     retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
-#     retrieved_docs = retriever.invoke(state["query"])
-#     context = "\n\n".join(d.page_content[:800] for d in retrieved_docs)
-
-#     prompt = f"""
-# Answer ONLY using context below.
-
-# Context:
-# {context}
-
-# Question:
-# {state['query']}
-
-# Keep answer under 200 words.
-# """
-#     answer = rag_agent.llm.call(prompt)
-#     latency = round(time.time() - start, 2)
-#     return {"outputs": [f"📄 DOCUMENT INSIGHTS (Latency: {latency}s)\n{answer.strip()}"]}
-
-# # =========================
-# # Build a fresh workflow per query
-# # =========================
-# def build_workflow():
-#     workflow = StateGraph(GraphState)
-#     workflow.add_node("orchestrator", orchestrator_node)
-#     workflow.add_node("financial", financial_node)
-#     workflow.add_node("news", news_node)
-#     workflow.add_node("risk", risk_node)
-#     workflow.add_node("rag", rag_node)
-#     workflow.set_entry_point("orchestrator")
-#     workflow.add_conditional_edges("orchestrator", lambda s: s["routes"])
-#     workflow.add_edge("financial", END)
-#     workflow.add_edge("news", END)
-#     workflow.add_edge("risk", END)
-#     workflow.add_edge("rag", END)
-#     return workflow.compile()
-
-# # =========================
-# # Runner
-# # =========================
-# def run_graph(query, doc_path=""):
-
-#     ticker = extract_ticker_from_query(query)
-#     if not ticker and not doc_path:
-#         return {"outputs": ["❌ Could not detect company. Please mention company like Nvidia, Apple, Tesla, etc."]}
-
-#     # Create fresh Crew objects each time
-#     financial_crew = Crew(
-#         agents=[fin_analyst],
-#         tasks=[financial_task],
-#         process=Process.sequential
-#     )
-#     news_crew = Crew(
-#         agents=[news_analyst],
-#         tasks=[news_task],
-#         process=Process.sequential
-#     )
-#     risk_crew = Crew(
-#         agents=[risk_analyst],
-#         tasks=[risk_task],
-#         process=Process.sequential
-#     )
-
-#     workflow_app = build_workflow()  # fresh workflow
-#     state: GraphState = {
-#         "query": query.strip(),
-#         "ticker": ticker,
-#         "doc_path": doc_path,
-#         "routes": [],
-#         "outputs": []
-#     }
-
-#     result = workflow_app.invoke(state)
-#     return result
-
 #patils repo code...
 
 # import os
@@ -839,7 +471,334 @@
 #     return app.invoke(state)
 
 
-#latst compasion code also
+# #latst compasion code also
+# import os
+# import time
+# import re
+# from typing import TypedDict, List, Annotated
+# from dotenv import load_dotenv
+
+# os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
+
+# from crewai import Agent, Task, Crew, Process, LLM
+# from langgraph.graph import StateGraph, END, add_messages
+# from rapidfuzz import fuzz
+# from langsmith import traceable
+
+# # Import tools
+# from tools import (
+#     fetch_stock_data,
+#     fetch_news_and_sentiment,
+#     fetch_risk_metrics,
+#     read_uploaded_document
+# )
+
+# load_dotenv()
+
+# # =========================
+# # Automatic Multi-Ticker Detection
+# # =========================
+# def extract_tickers(query: str) -> List[str]:
+
+#     query_lower = query.lower()
+
+#     company_map = {
+#         "nvidia": "NVDA",
+#         "apple": "AAPL",
+#         "tesla": "TSLA",
+#         "microsoft": "MSFT",
+#         "amazon": "AMZN",
+#         "google": "GOOGL",
+#         "meta": "META"
+#     }
+
+#     tickers = []
+
+#     for company, ticker in company_map.items():
+#         if company in query_lower:
+#             tickers.append(ticker)
+
+#     # Detect ticker symbols directly
+#     matches = re.findall(r"\b[A-Z]{2,5}\b", query)
+#     tickers.extend(matches)
+
+#     # Remove duplicates
+#     tickers = list(set(tickers))
+
+#     if not tickers:
+#         tickers = ["NVDA"]
+
+#     return tickers
+
+
+# # =========================
+# # LLM Configuration
+# # =========================
+# llm = LLM(
+#     model="meta/llama3-70b-instruct",
+#     api_key=os.getenv("NVIDIA_API_KEY"),
+#     base_url="https://integrate.api.nvidia.com/v1",
+#     provider="openai",
+#     temperature=0,
+#     max_tokens=1024
+# )
+
+# # =========================
+# # Agents
+# # =========================
+# fin_analyst = Agent(
+#     role="Senior Financial Analyst",
+#     goal="Analyze {ticker} financial health",
+#     backstory="Expert in valuation and financial metrics.",
+#     tools=[fetch_stock_data],
+#     llm=llm
+# )
+
+# news_analyst = Agent(
+#     role="News Analyst",
+#     goal="Analyze sentiment from latest headlines for {ticker}",
+#     backstory="Tracks market-moving news.",
+#     tools=[fetch_news_and_sentiment],
+#     llm=llm
+# )
+
+# risk_analyst = Agent(
+#     role="Risk Analyst",
+#     goal="Assess market risk for {ticker}",
+#     backstory="Specialist in volatility and correlations.",
+#     tools=[fetch_risk_metrics],
+#     llm=llm
+# )
+
+# rag_agent = Agent(
+#     role="Document Intelligence Agent",
+#     goal="Answer questions strictly from document {doc_path}",
+#     backstory="Expert in financial document analysis.",
+#     tools=[read_uploaded_document],
+#     llm=llm
+# )
+
+# # =========================
+# # Graph State
+# # =========================
+# class GraphState(TypedDict):
+#     query: str
+#     tickers: List[str]
+#     doc_path: str
+#     routes: List[str]
+#     outputs: Annotated[List[str], add_messages]
+
+# # =========================
+# # Intent Detection
+# # =========================
+# def fuzzy_contains(query: str, keywords: list) -> bool:
+#     return any(fuzz.partial_ratio(query.lower(), kw) > 70 for kw in keywords)
+
+# financial_keywords = ["financial", "valuation", "revenue", "price", "pe"]
+# news_keywords = ["news", "sentiment", "headline"]
+# risk_keywords = ["risk", "volatility", "beta"]
+
+# # =========================
+# # Orchestrator
+# # =========================
+# def orchestrator_node(state: GraphState):
+
+#     q = state["query"].lower()
+#     routes = []
+
+#     if state.get("doc_path"):
+#         routes.append("rag")
+
+#     if fuzzy_contains(q, financial_keywords):
+#         routes.append("financial")
+
+#     if fuzzy_contains(q, news_keywords):
+#         routes.append("news")
+
+#     if fuzzy_contains(q, risk_keywords):
+#         routes.append("risk")
+
+#     if not routes:
+#         routes = ["financial", "news", "risk"]
+
+#     return {"routes": routes}
+
+
+# # =========================
+# # Financial Node
+# # =========================
+# @traceable(name="Financial Node")
+# def financial_node(state: GraphState):
+
+#     start = time.time()
+#     results = []
+
+#     for ticker in state["tickers"]:
+
+#         task = Task(
+#             description=f"Provide financial analysis for {ticker}",
+#             expected_output="Price, Market Cap, PE ratio summary",
+#             agent=fin_analyst
+#         )
+
+#         crew = Crew(
+#             agents=[fin_analyst],
+#             tasks=[task],
+#             process=Process.sequential
+#         )
+
+#         result = crew.kickoff(inputs={"ticker": ticker})
+#         results.append(f"### {ticker}\n{result}")
+
+#     return {
+#         "outputs": [
+#             f"📊 FINANCIAL ANALYSIS ({round(time.time()-start,2)}s)\n\n" +
+#             "\n\n".join(results)
+#         ]
+#     }
+
+
+# # =========================
+# # News Node
+# # =========================
+# @traceable(name="News Node")
+# def news_node(state: GraphState):
+
+#     start = time.time()
+#     results = []
+
+#     for ticker in state["tickers"]:
+
+#         task = Task(
+#             description=f"Analyze news sentiment for {ticker}",
+#             expected_output="Top headlines and sentiment summary",
+#             agent=news_analyst
+#         )
+
+#         crew = Crew(
+#             agents=[news_analyst],
+#             tasks=[task],
+#             process=Process.sequential
+#         )
+
+#         result = crew.kickoff(inputs={"ticker": ticker})
+#         results.append(f"### {ticker}\n{result}")
+
+#     return {
+#         "outputs": [
+#             f"📰 NEWS & SENTIMENT ({round(time.time()-start,2)}s)\n\n" +
+#             "\n\n".join(results)
+#         ]
+#     }
+
+
+# # =========================
+# # Risk Node
+# # =========================
+# @traceable(name="Risk Node")
+# def risk_node(state: GraphState):
+
+#     start = time.time()
+#     results = []
+
+#     for ticker in state["tickers"]:
+
+#         task = Task(
+#             description=f"Assess risk metrics for {ticker}",
+#             expected_output="Beta, volatility, risk summary",
+#             agent=risk_analyst
+#         )
+
+#         crew = Crew(
+#             agents=[risk_analyst],
+#             tasks=[task],
+#             process=Process.sequential
+#         )
+
+#         result = crew.kickoff(inputs={"ticker": ticker})
+#         results.append(f"### {ticker}\n{result}")
+
+#     return {
+#         "outputs": [
+#             f"⚠️ RISK ASSESSMENT ({round(time.time()-start,2)}s)\n\n" +
+#             "\n\n".join(results)
+#         ]
+#     }
+
+
+# # =========================
+# # RAG Node
+# # =========================
+# @traceable(name="RAG Node")
+# def rag_node(state: GraphState):
+
+#     start = time.time()
+
+#     task = Task(
+#         description=f"Read {state['doc_path']} and answer: {state['query']}",
+#         expected_output="Answer based only on document",
+#         agent=rag_agent
+#     )
+
+#     crew = Crew(
+#         agents=[rag_agent],
+#         tasks=[task],
+#         process=Process.sequential
+#     )
+
+#     result = crew.kickoff()
+
+#     return {
+#         "outputs": [
+#             f"📄 DOCUMENT INSIGHTS ({round(time.time()-start,2)}s)\n{result}"
+#         ]
+#     }
+
+
+# # =========================
+# # Build Workflow
+# # =========================
+# workflow = StateGraph(GraphState)
+
+# workflow.add_node("orchestrator", orchestrator_node)
+# workflow.add_node("financial", financial_node)
+# workflow.add_node("news", news_node)
+# workflow.add_node("risk", risk_node)
+# workflow.add_node("rag", rag_node)
+
+# workflow.set_entry_point("orchestrator")
+
+# workflow.add_conditional_edges(
+#     "orchestrator",
+#     lambda s: s["routes"]
+# )
+
+# workflow.add_edge("financial", END)
+# workflow.add_edge("news", END)
+# workflow.add_edge("risk", END)
+# workflow.add_edge("rag", END)
+
+# app = workflow.compile()
+
+# # =========================
+# # Run Graph
+# # =========================
+# def run_graph(query, doc_path):
+
+#     tickers = extract_tickers(query)
+
+#     state: GraphState = {
+#         "query": query,
+#         "tickers": tickers,
+#         "doc_path": doc_path,
+#         "routes": [],
+#         "outputs": []
+#     }
+
+#     return app.invoke(state)
+
+
+#new UI bug edit code...
 import os
 import time
 import re
@@ -886,17 +845,28 @@ def extract_tickers(query: str) -> List[str]:
         if company in query_lower:
             tickers.append(ticker)
 
-    # Detect ticker symbols directly
     matches = re.findall(r"\b[A-Z]{2,5}\b", query)
     tickers.extend(matches)
 
-    # Remove duplicates
     tickers = list(set(tickers))
 
     if not tickers:
         tickers = ["NVDA"]
 
     return tickers
+
+
+# =========================
+# Response Formatter
+# =========================
+def clean_markdown(text: str) -> str:
+
+    text = str(text)
+
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'\s+\n', '\n', text)
+
+    return text.strip()
 
 
 # =========================
@@ -956,6 +926,7 @@ class GraphState(TypedDict):
     routes: List[str]
     outputs: Annotated[List[str], add_messages]
 
+
 # =========================
 # Intent Detection
 # =========================
@@ -965,6 +936,7 @@ def fuzzy_contains(query: str, keywords: list) -> bool:
 financial_keywords = ["financial", "valuation", "revenue", "price", "pe"]
 news_keywords = ["news", "sentiment", "headline"]
 risk_keywords = ["risk", "volatility", "beta"]
+
 
 # =========================
 # Orchestrator
@@ -1004,8 +976,38 @@ def financial_node(state: GraphState):
     for ticker in state["tickers"]:
 
         task = Task(
-            description=f"Provide financial analysis for {ticker}",
-            expected_output="Price, Market Cap, PE ratio summary",
+            description=f"""
+Use the provided financial tool data to analyze {ticker}.
+
+STRICT RULES:
+- You MUST use the tool output values.
+- Do NOT invent numbers.
+- If a value is missing write "Data not available".
+
+Return a well structured markdown report.
+
+FORMAT:
+
+## {ticker} Financial Summary
+
+| Metric | Value |
+|------|------|
+| Current Price | |
+| Market Cap | |
+| PE Ratio | |
+| 52 Week High | |
+| 52 Week Low | |
+| Revenue Growth | |
+
+### Key Insights
+- Bullet insight about valuation
+- Bullet insight about growth
+- Bullet insight about profitability
+
+### Investment Outlook
+Provide a short professional investment outlook (3-4 sentences).
+""",
+            expected_output="Structured financial markdown report",
             agent=fin_analyst
         )
 
@@ -1016,12 +1018,13 @@ def financial_node(state: GraphState):
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})
-        results.append(f"### {ticker}\n{result}")
+
+        results.append(f"### {ticker}\n{clean_markdown(result)}")
 
     return {
         "outputs": [
-            f"📊 FINANCIAL ANALYSIS ({round(time.time()-start,2)}s)\n\n" +
-            "\n\n".join(results)
+            f"📊 FINANCIAL ANALYSIS ({round(time.time()-start,2)}s)\n\n"
+            + "\n\n".join(results)
         ]
     }
 
@@ -1038,8 +1041,25 @@ def news_node(state: GraphState):
     for ticker in state["tickers"]:
 
         task = Task(
-            description=f"Analyze news sentiment for {ticker}",
-            expected_output="Top headlines and sentiment summary",
+            description=f"""
+Analyze latest news for {ticker}.
+
+Return structured markdown:
+
+## {ticker} News Sentiment
+
+### Top Headlines
+- headline 1
+- headline 2
+- headline 3
+
+### Overall Sentiment
+Bullish / Neutral / Bearish
+
+### Key Impact
+Short explanation.
+""",
+            expected_output="News sentiment report",
             agent=news_analyst
         )
 
@@ -1050,7 +1070,8 @@ def news_node(state: GraphState):
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})
-        results.append(f"### {ticker}\n{result}")
+
+        results.append(f"### {ticker}\n{clean_markdown(result)}")
 
     return {
         "outputs": [
@@ -1072,8 +1093,24 @@ def risk_node(state: GraphState):
     for ticker in state["tickers"]:
 
         task = Task(
-            description=f"Assess risk metrics for {ticker}",
-            expected_output="Beta, volatility, risk summary",
+            description=f"""
+Assess investment risk for {ticker}.
+
+Return markdown format:
+
+## {ticker} Risk Assessment
+
+**Beta:**  
+**Volatility:**
+
+### Risk Insights
+- point 1
+- point 2
+
+### Overall Risk Level
+Low / Medium / High
+""",
+            expected_output="Risk analysis report",
             agent=risk_analyst
         )
 
@@ -1084,7 +1121,8 @@ def risk_node(state: GraphState):
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})
-        results.append(f"### {ticker}\n{result}")
+
+        results.append(f"### {ticker}\n{clean_markdown(result)}")
 
     return {
         "outputs": [
@@ -1103,8 +1141,14 @@ def rag_node(state: GraphState):
     start = time.time()
 
     task = Task(
-        description=f"Read {state['doc_path']} and answer: {state['query']}",
-        expected_output="Answer based only on document",
+        description=f"""
+Read document {state['doc_path']} and answer:
+
+{state['query']}
+
+Format response in clear markdown sections.
+""",
+        expected_output="Document based answer",
         agent=rag_agent
     )
 
@@ -1118,7 +1162,7 @@ def rag_node(state: GraphState):
 
     return {
         "outputs": [
-            f"📄 DOCUMENT INSIGHTS ({round(time.time()-start,2)}s)\n{result}"
+            f"📄 DOCUMENT INSIGHTS ({round(time.time()-start,2)}s)\n\n{clean_markdown(result)}"
         ]
     }
 
@@ -1147,6 +1191,7 @@ workflow.add_edge("risk", END)
 workflow.add_edge("rag", END)
 
 app = workflow.compile()
+
 
 # =========================
 # Run Graph
