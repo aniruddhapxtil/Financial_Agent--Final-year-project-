@@ -815,6 +815,10 @@ db.init_db()
 # =========================
 # SESSION STATE
 # =========================
+
+if "page" not in st.session_state:
+    st.session_state.page = "chat"
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -874,6 +878,59 @@ def plot_risk_pie(ticker):
     )
 
     st.plotly_chart(fig, use_container_width=True, key=f"price_{ticker}_{time.time()}")
+
+    # =========================
+# GRAPH VISUALIZATION
+# =========================
+import networkx as nx
+import plotly.graph_objects as go
+
+def render_graph(routes):
+
+    G = nx.DiGraph()
+
+    G.add_node("orchestrator")
+
+    for r in routes:
+        G.add_edge("orchestrator", r)
+
+    pos = nx.spring_layout(G)
+
+    edge_x = []
+    edge_y = []
+
+    for edge in G.edges():
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        edge_x += [x0, x1, None]
+        edge_y += [y0, y1, None]
+
+    edge_trace = go.Scatter(
+        x=edge_x, y=edge_y,
+        mode='lines'
+    )
+
+    node_x = []
+    node_y = []
+    text = []
+
+    for node in G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+        text.append(node)
+
+    node_trace = go.Scatter(
+        x=node_x,
+        y=node_y,
+        mode='markers+text',
+        text=text,
+        textposition="bottom center"
+    )
+
+    fig = go.Figure(data=[edge_trace, node_trace])
+
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # =========================
@@ -986,7 +1043,17 @@ def main_chat_screen():
         uploaded_file = st.file_uploader("Upload PDF / TXT", type=["pdf", "txt"])
 
     # ===== MAIN =====
-    st.title("Financial Multi-Agent Analyst")
+    # st.title("Financial Multi-Agent Analyst")
+
+    col1, col2 = st.columns([8, 2])
+
+    with col1:
+        st.title("Financial Multi-Agent Analyst")
+
+    with col2:
+        if st.button("Check Dashboard"):
+            st.session_state.page = "dashboard"
+            st.rerun()
 
     # =========================
     # RENDER CHAT HISTORY
@@ -1048,7 +1115,13 @@ def main_chat_screen():
                         tmp.write(uploaded_file.read())
                         doc_path = tmp.name
 
-                result = run_graph(prompt, doc_path)
+                # result = run_graph(prompt, doc_path)
+                result, debug_data = run_graph(prompt, doc_path)
+
+                if "debug_logs" not in st.session_state:
+                    st.session_state.debug_logs = []
+
+                st.session_state.debug_logs.append(debug_data)
 
                 outputs = result.get("outputs", [])
 
@@ -1133,12 +1206,53 @@ def main_chat_screen():
                         prompt[:40]
                     )
 
+def dashboard_screen():
+
+    st.title("📊 Multi-Agent Execution Dashboard")
+
+    if st.button("⬅ Back to Chat"):
+        st.session_state.page = "chat"
+        st.rerun()
+
+    logs = st.session_state.get("debug_logs", [])
+
+    if not logs:
+        st.info("No runs yet.")
+        return
+
+    for log in reversed(logs):
+
+        st.subheader(f"🕒 {log['timestamp']}")
+
+        st.markdown(f"**Query:** {log['query']}")
+        st.markdown(f"**Tickers:** {', '.join(log['tickers'])}")
+
+        st.markdown(f"**Agents Triggered:** {', '.join(log['routes'])}")
+
+        st.markdown(f"**⏱ Total Latency:** {log['latency_total']} sec")
+
+
+        # 👇 ADD THIS HERE
+        render_graph(log["routes"])
+
+        st.divider()
+
+
+
 
 # =========================
 # ENTRY
 # =========================
+# if not st.session_state.logged_in:
+#     auth_screen()
+# else:
+#     main_chat_screen()
+
 if not st.session_state.logged_in:
     auth_screen()
 else:
-    main_chat_screen()
+    if st.session_state.page == "chat":
+        main_chat_screen()
+    elif st.session_state.page == "dashboard":
+        dashboard_screen()
 

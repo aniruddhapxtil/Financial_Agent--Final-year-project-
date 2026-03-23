@@ -1025,7 +1025,11 @@ Provide a short professional investment outlook (3-4 sentences).
         "outputs": [
             f"📊 FINANCIAL ANALYSIS ({round(time.time()-start,2)}s)\n\n"
             + "\n\n".join(results)
-        ]
+        ],
+        "debug": {
+        "agent": "financial",
+        "latency": round(time.time()-start, 2)
+            }
     }
 
 
@@ -1077,7 +1081,11 @@ Short explanation.
         "outputs": [
             f"📰 NEWS & SENTIMENT ({round(time.time()-start,2)}s)\n\n" +
             "\n\n".join(results)
-        ]
+        ],
+        "debug": {
+        "agent": "news",
+        "latency": round(time.time()-start, 2)
+        }
     }
 
 
@@ -1128,7 +1136,11 @@ Low / Medium / High
         "outputs": [
             f"⚠️ RISK ASSESSMENT ({round(time.time()-start,2)}s)\n\n" +
             "\n\n".join(results)
-        ]
+        ],
+        "debug": {
+        "agent": "risk",
+        "latency": round(time.time()-start, 2)
+        }
     }
 
 
@@ -1163,7 +1175,11 @@ Format response in clear markdown sections.
     return {
         "outputs": [
             f"📄 DOCUMENT INSIGHTS ({round(time.time()-start,2)}s)\n\n{clean_markdown(result)}"
-        ]
+        ],
+        "debug": {
+        "agent": "rag",
+        "latency": round(time.time()-start, 2)
+        }
     }
 
 
@@ -1196,7 +1212,23 @@ app = workflow.compile()
 # =========================
 # Run Graph
 # =========================
+# def run_graph(query, doc_path):
+
+#     tickers = extract_tickers(query)
+
+#     state: GraphState = {
+#         "query": query,
+#         "tickers": tickers,
+#         "doc_path": doc_path,
+#         "routes": [],
+#         "outputs": []
+#     }
+
+#     return app.invoke(state)
+
 def run_graph(query, doc_path):
+
+    start_total = time.time()
 
     tickers = extract_tickers(query)
 
@@ -1208,4 +1240,17 @@ def run_graph(query, doc_path):
         "outputs": []
     }
 
-    return app.invoke(state)
+    result = app.invoke(state)
+
+    total_time = round(time.time() - start_total, 2)
+
+    debug_data = {
+        "query": query,
+        "tickers": tickers,
+        "routes": result.get("routes", []),
+        "outputs": result.get("outputs", []),
+        "latency_total": total_time,
+        "timestamp": time.strftime("%H:%M:%S")
+    }
+
+    return result, debug_data
