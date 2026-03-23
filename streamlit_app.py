@@ -845,7 +845,7 @@ def plot_price_chart(ticker):
         title=f"{ticker} Price Trend (6 Months)"
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key=f"price_{ticker}_{time.time()}")
 
 
 def plot_risk_pie(ticker):
@@ -873,7 +873,7 @@ def plot_risk_pie(ticker):
         title=f"{ticker} Risk Distribution"
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key=f"price_{ticker}_{time.time()}")
 
 
 # =========================
@@ -922,11 +922,10 @@ def auth_screen():
 # MAIN CHAT UI
 # =========================
 def main_chat_screen():
-        
-            # ===== SIDEBAR =====
+
+    # ===== SIDEBAR =====
     with st.sidebar:
 
-        # Custom CSS for oval button
         st.markdown("""
             <style>
             .signout-btn button {
@@ -937,7 +936,6 @@ def main_chat_screen():
             </style>
         """, unsafe_allow_html=True)
 
-        # Top row: icon + styled signout
         col1, col2 = st.columns([3, 2])
 
         with col1:
@@ -955,11 +953,8 @@ def main_chat_screen():
 
         st.markdown(f"### 👤 {st.session_state.username}")
 
-    
-
         st.divider()
 
-        # New + Clear side by side
         col1, col2 = st.columns(2)
 
         with col1:
@@ -989,7 +984,6 @@ def main_chat_screen():
         st.divider()
 
         uploaded_file = st.file_uploader("Upload PDF / TXT", type=["pdf", "txt"])
-        
 
     # ===== MAIN =====
     st.title("Financial Multi-Agent Analyst")
@@ -1026,7 +1020,7 @@ def main_chat_screen():
     # =========================
     if prompt := st.chat_input("Ask about any stock..."):
 
-        # USER MESSAGE
+        # SAVE USER MESSAGE
         st.session_state.chat_history.append({
             "role": "user",
             "content": prompt
@@ -1038,6 +1032,11 @@ def main_chat_screen():
             prompt
         )
 
+        # ✅ SHOW USER MESSAGE IMMEDIATELY
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # ASSISTANT RESPONSE
         with st.chat_message("assistant"):
 
             with st.spinner("Analyzing..."):
@@ -1053,24 +1052,42 @@ def main_chat_screen():
 
                 outputs = result.get("outputs", [])
 
+                # formatted_outputs = []
+
+                # for o in outputs:
+                #     if isinstance(o, str):
+                #         formatted_outputs.append(o)
+                #     else:
+                #         content = getattr(o, "content", str(o))
+                #         formatted_outputs.append(content)
+
                 formatted_outputs = []
 
                 for o in outputs:
                     if isinstance(o, str):
-                        formatted_outputs.append(o)
+                        content = o
                     else:
                         content = getattr(o, "content", str(o))
-                        formatted_outputs.append(content)
+
+                    # 🔥 REMOVE INTERNAL THINKING
+                    cleaned_lines = []
+                    for line in content.split("\n"):
+                        if not line.strip().startswith(("Thought:", "Action:", "Observation:")):
+                            cleaned_lines.append(line)
+
+                    cleaned_content = "\n".join(cleaned_lines).strip()
+
+                    if cleaned_content:
+                        formatted_outputs.append(cleaned_content)
 
                 full_response = "\n\n".join(formatted_outputs)
 
-                # ✅ SHOW RESPONSE
+                # SHOW RESPONSE
                 st.markdown(full_response)
 
                 routes = result.get("routes", [])
                 tickers = extract_tickers(prompt)
 
-                # ✅ 🔥 FIX: SHOW CHARTS IMMEDIATELY
                 if "rag" not in routes:
 
                     if "financial" in routes:
@@ -1087,7 +1104,7 @@ def main_chat_screen():
                         for ticker in tickers:
                             plot_risk_pie(ticker)
 
-                # SAVE MESSAGE
+                # SAVE ASSISTANT MESSAGE
                 st.session_state.chat_history.append({
                     "role": "assistant",
                     "content": full_response,
@@ -1098,17 +1115,16 @@ def main_chat_screen():
                 })
 
                 charts_data = {
-                "tickers": tickers,
-                "routes": routes
-            }
-
+                    "tickers": tickers,
+                    "routes": routes
+                }
 
                 db.save_message(
-                st.session_state.current_chat_id,
-                "assistant",
-                full_response,
-                charts=charts_data
-            )
+                    st.session_state.current_chat_id,
+                    "assistant",
+                    full_response,
+                    charts=charts_data
+                )
 
                 # AUTO TITLE
                 if len(st.session_state.chat_history) == 2:
@@ -1125,3 +1141,4 @@ if not st.session_state.logged_in:
     auth_screen()
 else:
     main_chat_screen()
+
