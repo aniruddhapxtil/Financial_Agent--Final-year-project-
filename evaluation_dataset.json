@@ -1,0 +1,24 @@
+[
+  {
+    "query": "Analyze Nvidia sentiment",
+    "expected": { "sentiment": "Bullish" }
+  },
+  {
+    "query": "What is Tesla risk level?",
+    "expected": { "risk": "High" }
+  },
+  {
+    "query": "Give financial analysis of Apple",
+    "expected": { "financial": "valid" }
+  },
+  {
+    "query": "Analyze Amazon news sentiment",
+    "expected": { "sentiment": "Neutral" }
+  },
+  { "query": "Analyze Microsoft sentiment", "expected": { "sentiment": "Bullish" } },
+  { "query": "Is Microsoft stock a safe investment?", "expected": { "risk": "Low" } },
+  { "query": "Give financial analysis of Microsoft", "expected": { "financial": true } },
+  { "query": "Is Tesla a good long term investment despite volatility?", "expected": { "risk": "High" } }
+
+
+]

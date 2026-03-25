@@ -797,7 +797,12 @@ import pandas as pd
 import plotly.express as px
 
 from main import run_graph, extract_tickers
+from evaluation import evaluate_system
 import db_manager as db
+
+@st.cache_data
+def run_eval_cached():
+    return evaluate_system()
 
 
 # =========================
@@ -1206,6 +1211,37 @@ def main_chat_screen():
                         prompt[:40]
                     )
 
+# def dashboard_screen():
+
+#     st.title("📊 Multi-Agent Execution Dashboard")
+
+#     if st.button("⬅ Back to Chat"):
+#         st.session_state.page = "chat"
+#         st.rerun()
+
+#     logs = st.session_state.get("debug_logs", [])
+
+#     if not logs:
+#         st.info("No runs yet.")
+#         return
+
+#     for log in reversed(logs):
+
+#         st.subheader(f"🕒 {log['timestamp']}")
+
+#         st.markdown(f"**Query:** {log['query']}")
+#         st.markdown(f"**Tickers:** {', '.join(log['tickers'])}")
+
+#         st.markdown(f"**Agents Triggered:** {', '.join(log['routes'])}")
+
+#         st.markdown(f"**⏱ Total Latency:** {log['latency_total']} sec")
+
+
+#         # 👇 ADD THIS HERE
+#         render_graph(log["routes"])
+
+#         st.divider()
+
 def dashboard_screen():
 
     st.title("📊 Multi-Agent Execution Dashboard")
@@ -1213,6 +1249,49 @@ def dashboard_screen():
     if st.button("⬅ Back to Chat"):
         st.session_state.page = "chat"
         st.rerun()
+
+    # =========================
+    # 🔥 NEW: EVALUATION SECTION
+    # =========================
+    st.divider()
+    st.subheader("📊 System Benchmarking")
+
+    if st.button("🚀 Run Evaluation Benchmark"):
+
+        with st.spinner("Running evaluation on dataset..."):
+
+            results = run_eval_cached()
+
+            st.session_state.eval_results = results
+
+    # SHOW RESULTS
+    if "eval_results" in st.session_state:
+
+        res = st.session_state.eval_results
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("Accuracy", f"{res['accuracy']*100:.2f}%")
+        col2.metric("Avg Latency", f"{res['avg_latency']:.2f}s")
+        col3.metric("Financial Score", f"{res['financial_score']:.2f}/5")
+
+        # OPTIONAL CHART
+        df = pd.DataFrame({
+            "Metric": ["Accuracy", "Latency", "Financial Score"],
+            "Value": [
+                res["accuracy"] * 100,
+                res["avg_latency"],
+                res["financial_score"]
+            ]
+        })
+
+        st.bar_chart(df.set_index("Metric"))
+
+    # =========================
+    # EXISTING LOGS
+    # =========================
+    st.divider()
+    st.subheader("🧠 Execution Logs")
 
     logs = st.session_state.get("debug_logs", [])
 
@@ -1231,8 +1310,6 @@ def dashboard_screen():
 
         st.markdown(f"**⏱ Total Latency:** {log['latency_total']} sec")
 
-
-        # 👇 ADD THIS HERE
         render_graph(log["routes"])
 
         st.divider()
