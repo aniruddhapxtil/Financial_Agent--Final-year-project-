@@ -878,7 +878,7 @@ llm = LLM(
     base_url="https://integrate.api.nvidia.com/v1",
     provider="openai",
     temperature=0,
-    max_tokens=1024
+    max_tokens=300 #change to 1024 when not doing evaltion
 )
 
 # =========================
@@ -967,26 +967,88 @@ def orchestrator_node(state: GraphState):
 # =========================
 # Financial Node
 # =========================
+# @traceable(name="Financial Node")
+# def financial_node(state: GraphState):
+
+#     start = time.time()
+#     results = []
+
+#     for ticker in state["tickers"]:
+
+#         task = Task(
+#             description=f"""
+# Use the provided financial tool data to analyze {ticker}.
+
+# STRICT RULES:
+# - You MUST use the tool output values.
+# - Do NOT invent numbers.
+# - If a value is missing write "Data not available".
+
+# Return a well structured markdown report.
+
+# FORMAT:
+
+# ## {ticker} Financial Summary
+
+# | Metric | Value |
+# |------|------|
+# | Current Price | |
+# | Market Cap | |
+# | PE Ratio | |
+# | 52 Week High | |
+# | 52 Week Low | |
+# | Revenue Growth | |
+
+# ### Key Insights
+# - Bullet insight about valuation
+# - Bullet insight about growth
+# - Bullet insight about profitability
+
+# ### Investment Outlook
+# Provide a short professional investment outlook (3-4 sentences).
+# """,
+#             expected_output="Structured financial markdown report",
+#             agent=fin_analyst
+#         )
+
+#         crew = Crew(
+#             agents=[fin_analyst],
+#             tasks=[task],
+#             process=Process.sequential
+#         )
+
+#         result = crew.kickoff(inputs={"ticker": ticker})
+
+#         results.append(f"### {ticker}\n{clean_markdown(result)}")
+
+#     return {
+#         "outputs": [
+#         "\n\n".join(results)
+#     ],
+#         "debug": {
+#         "agent": "financial",
+#         "latency": round(time.time()-start, 2)
+#             }
+#     }
+from concurrent.futures import ThreadPoolExecutor
+
 @traceable(name="Financial Node")
 def financial_node(state: GraphState):
 
     start = time.time()
-    results = []
 
-    for ticker in state["tickers"]:
+    def run_task(ticker):
 
         task = Task(
             description=f"""
 Use the provided financial tool data to analyze {ticker}.
 
 STRICT RULES:
-- You MUST use the tool output values.
-- Do NOT invent numbers.
-- If a value is missing write "Data not available".
+- Use tool output only
+- Do NOT invent numbers
+- If missing → "Data not available"
 
-Return a well structured markdown report.
-
-FORMAT:
+Return:
 
 ## {ticker} Financial Summary
 
@@ -1000,12 +1062,10 @@ FORMAT:
 | Revenue Growth | |
 
 ### Key Insights
-- Bullet insight about valuation
-- Bullet insight about growth
-- Bullet insight about profitability
+- 3 bullet points
 
 ### Investment Outlook
-Provide a short professional investment outlook (3-4 sentences).
+3-4 lines
 """,
             expected_output="Structured financial markdown report",
             agent=fin_analyst
@@ -1014,54 +1074,106 @@ Provide a short professional investment outlook (3-4 sentences).
         crew = Crew(
             agents=[fin_analyst],
             tasks=[task],
-            process=Process.sequential
+            process=Process.sequential,
+            memory = False #added for evaltionan only
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})
 
-        results.append(f"### {ticker}\n{clean_markdown(result)}")
+        return f"### {ticker}\n{clean_markdown(result)}"
+
+    # 🔥 PARALLEL EXECUTION
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(run_task, state["tickers"]))
 
     return {
         "outputs": [
-            f"📊 FINANCIAL ANALYSIS ({round(time.time()-start,2)}s)\n\n"
-            + "\n\n".join(results)
+            "\n\n".join(results)
         ],
         "debug": {
-        "agent": "financial",
-        "latency": round(time.time()-start, 2)
-            }
+            "agent": "financial",
+            "latency": round(time.time() - start, 2)
+        }
     }
-
 
 # =========================
 # News Node
 # =========================
+# @traceable(name="News Node")
+# def news_node(state: GraphState):
+
+#     start = time.time()
+#     results = []
+
+#     for ticker in state["tickers"]:
+
+#         task = Task(
+#             description=f"""
+# Analyze latest news for {ticker}.
+
+# Return structured markdown:
+
+# ## {ticker} News Sentiment
+
+# ### Top Headlines
+# - headline 1
+# - headline 2
+# - headline 3
+
+# ### Overall Sentiment
+# Bullish / Neutral / Bearish
+
+# ### Key Impact
+# Short explanation.
+# """,
+#             expected_output="News sentiment report",
+#             agent=news_analyst
+#         )
+
+#         crew = Crew(
+#             agents=[news_analyst],
+#             tasks=[task],
+#             process=Process.sequential
+#         )
+
+#         result = crew.kickoff(inputs={"ticker": ticker})
+
+#         results.append(f"### {ticker}\n{clean_markdown(result)}")
+
+#     return {
+#          "outputs": [
+#         "\n\n".join(results)
+#     ],
+#         "debug": {
+#         "agent": "news",
+#         "latency": round(time.time()-start, 2)
+#         }
+#     }
+
+
 @traceable(name="News Node")
 def news_node(state: GraphState):
 
     start = time.time()
-    results = []
 
-    for ticker in state["tickers"]:
+    def run_task(ticker):
 
         task = Task(
             description=f"""
 Analyze latest news for {ticker}.
 
-Return structured markdown:
+Return:
 
 ## {ticker} News Sentiment
 
 ### Top Headlines
-- headline 1
-- headline 2
-- headline 3
+- 3 headlines
 
 ### Overall Sentiment
 Bullish / Neutral / Bearish
 
 ### Key Impact
-Short explanation.
+Short explanation
 """,
             expected_output="News sentiment report",
             agent=news_analyst
@@ -1070,21 +1182,25 @@ Short explanation.
         crew = Crew(
             agents=[news_analyst],
             tasks=[task],
-            process=Process.sequential
+            process=Process.sequential,
+            memory = False #added for evaltionan only
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})
 
-        results.append(f"### {ticker}\n{clean_markdown(result)}")
+        return f"### {ticker}\n{clean_markdown(result)}"
+
+    # 🔥 PARALLEL EXECUTION
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        results = list(executor.map(run_task, state["tickers"]))
 
     return {
         "outputs": [
-            f"📰 NEWS & SENTIMENT ({round(time.time()-start,2)}s)\n\n" +
             "\n\n".join(results)
         ],
         "debug": {
-        "agent": "news",
-        "latency": round(time.time()-start, 2)
+            "agent": "news",
+            "latency": round(time.time() - start, 2)
         }
     }
 
@@ -1092,19 +1208,69 @@ Short explanation.
 # =========================
 # Risk Node
 # =========================
+# @traceable(name="Risk Node")
+# def risk_node(state: GraphState):
+
+#     start = time.time()
+#     results = []
+
+#     for ticker in state["tickers"]:
+
+#         task = Task(
+#             description=f"""
+# Assess investment risk for {ticker}.
+
+# Return markdown format:
+
+# ## {ticker} Risk Assessment
+
+# **Beta:**  
+# **Volatility:**
+
+# ### Risk Insights
+# - point 1
+# - point 2
+
+# ### Overall Risk Level
+# Low / Medium / High
+# """,
+#             expected_output="Risk analysis report",
+#             agent=risk_analyst
+#         )
+
+#         crew = Crew(
+#             agents=[risk_analyst],
+#             tasks=[task],
+#             process=Process.sequential
+#         )
+
+#         result = crew.kickoff(inputs={"ticker": ticker})
+
+#         results.append(f"### {ticker}\n{clean_markdown(result)}")
+
+#     return {
+#         "outputs": [
+#         "\n\n".join(results)
+#     ],
+#         "debug": {
+#         "agent": "risk",
+#         "latency": round(time.time()-start, 2)
+#         }
+#     }
+from concurrent.futures import ThreadPoolExecutor
+
 @traceable(name="Risk Node")
 def risk_node(state: GraphState):
 
     start = time.time()
-    results = []
 
-    for ticker in state["tickers"]:
+    def run_task(ticker):
 
         task = Task(
             description=f"""
 Assess investment risk for {ticker}.
 
-Return markdown format:
+Return:
 
 ## {ticker} Risk Assessment
 
@@ -1112,8 +1278,7 @@ Return markdown format:
 **Volatility:**
 
 ### Risk Insights
-- point 1
-- point 2
+- 2 points
 
 ### Overall Risk Level
 Low / Medium / High
@@ -1125,21 +1290,25 @@ Low / Medium / High
         crew = Crew(
             agents=[risk_analyst],
             tasks=[task],
-            process=Process.sequential
+            process=Process.sequential,
+            memory = False #added for evaltionan only
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})
 
-        results.append(f"### {ticker}\n{clean_markdown(result)}")
+        return f"### {ticker}\n{clean_markdown(result)}"
+
+    # 🔥 PARALLEL EXECUTION
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        results = list(executor.map(run_task, state["tickers"]))
 
     return {
         "outputs": [
-            f"⚠️ RISK ASSESSMENT ({round(time.time()-start,2)}s)\n\n" +
             "\n\n".join(results)
         ],
         "debug": {
-        "agent": "risk",
-        "latency": round(time.time()-start, 2)
+            "agent": "risk",
+            "latency": round(time.time() - start, 2)
         }
     }
 
@@ -1167,15 +1336,16 @@ Format response in clear markdown sections.
     crew = Crew(
         agents=[rag_agent],
         tasks=[task],
-        process=Process.sequential
+        process=Process.sequential,
+        memory = False #added for evaltionan only
     )
 
     result = crew.kickoff()
 
     return {
-        "outputs": [
-            f"📄 DOCUMENT INSIGHTS ({round(time.time()-start,2)}s)\n\n{clean_markdown(result)}"
-        ],
+         "outputs": [
+        clean_markdown(result)
+    ],
         "debug": {
         "agent": "rag",
         "latency": round(time.time()-start, 2)

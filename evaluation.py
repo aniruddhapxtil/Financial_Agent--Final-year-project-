@@ -2,10 +2,7 @@ import json
 import time
 from typing import Dict, List
 
-
-
 from main import run_graph
-
 
 # =========================
 # OUTPUT PARSERS
@@ -42,14 +39,8 @@ def extract_risk(text: str) -> str:
 # =========================
 
 def evaluate_financial_quality(text: str) -> int:
-    """
-    Simple heuristic scoring (1–5)
-    You can later replace this with LLM judge
-    """
-
     score = 0
 
-    # Check for key sections
     if "financial summary" in text.lower():
         score += 1
     if "key insights" in text.lower():
@@ -57,11 +48,9 @@ def evaluate_financial_quality(text: str) -> int:
     if "investment outlook" in text.lower():
         score += 1
 
-    # Check if numbers exist
     if any(char.isdigit() for char in text):
         score += 1
 
-    # Check structure (table)
     if "|" in text:
         score += 1
 
@@ -89,82 +78,109 @@ def evaluate_system(dataset_path: str = "evaluation_dataset.json"):
     financial_scores = []
     latencies = []
 
+    difficulty_stats = {
+        "easy": {"total": 0, "correct": 0},
+        "medium": {"total": 0, "correct": 0},
+        "hard": {"total": 0, "correct": 0}
+    }
+
     print("\n🚀 Starting Evaluation...\n")
 
-    for i, item in enumerate(dataset):
+    # 🔥 LOOP THROUGH DIFFICULTY LEVELS
+    for difficulty in ["easy", "medium", "hard"]:
 
-        query = item["query"]
-        expected: Dict = item["expected"]
+        items = dataset.get(difficulty, [])
 
-        print(f"🔍 Test {i+1}: {query}")
+        for i, item in enumerate(items):
 
-        start = time.time()
+            query = item["query"]
+            expected: Dict = item["expected"]
 
-        result, debug = run_graph(query, "")
+            print(f"🔍 [{difficulty.upper()}] Test {i+1}: {query}")
 
-        latency = debug.get("latency_total", 0)
-        latencies.append(latency)
+            start = time.time()
 
-        outputs = result.get("outputs", [])
+            result, debug = run_graph(query, "")
 
-        formatted_outputs = []
+            latency = debug.get("latency_total", 0)
+            latencies.append(latency)
 
-        for o in outputs:
-            if isinstance(o, str):
-                content = o
-            else:
-                content = getattr(o, "content", str(o))
+            outputs = result.get("outputs", [])
 
-            formatted_outputs.append(content)
+            formatted_outputs = []
 
-        output_text = " ".join(formatted_outputs)
+            for o in outputs:
+                if isinstance(o, str):
+                    content = o
+                else:
+                    content = getattr(o, "content", str(o))
 
-        # =========================
-        # SENTIMENT EVALUATION
-        # =========================
-        if "sentiment" in expected:
-            pred = extract_sentiment(output_text)
-            true = expected["sentiment"]
+                formatted_outputs.append(content)
 
-            sentiment_true.append(true)
-            sentiment_pred.append(pred)
+            output_text = " ".join(formatted_outputs)
 
-            if pred == true:
-                correct += 1
-            total += 1
+            local_correct = 0
+            local_total = 0
 
-            print(f"   Sentiment → Pred: {pred} | True: {true}")
+            # =========================
+            # SENTIMENT
+            # =========================
+            if "sentiment" in expected:
+                pred = extract_sentiment(output_text)
+                true = expected["sentiment"]
 
-        # =========================
-        # RISK EVALUATION
-        # =========================
-        if "risk" in expected:
-            pred = extract_risk(output_text)
-            true = expected["risk"]
+                sentiment_true.append(true)
+                sentiment_pred.append(pred)
 
-            risk_true.append(true)
-            risk_pred.append(pred)
+                if pred == true:
+                    correct += 1
+                    local_correct += 1
 
-            if pred == true:
-                correct += 1
-            total += 1
+                total += 1
+                local_total += 1
 
-            print(f"   Risk → Pred: {pred} | True: {true}")
+                print(f"   Sentiment → Pred: {pred} | True: {true}")
 
-        # =========================
-        # FINANCIAL QUALITY
-        # =========================
-        if "financial" in expected:
-            score = evaluate_financial_quality(output_text)
-            financial_scores.append(score)
+            # =========================
+            # RISK
+            # =========================
+            if "risk" in expected:
+                pred = extract_risk(output_text)
+                true = expected["risk"]
 
-            print(f"   Financial Score: {score}/5")
+                risk_true.append(true)
+                risk_pred.append(pred)
 
-        print(f"   Latency: {latency}s\n")
+                if pred == true:
+                    correct += 1
+                    local_correct += 1
+
+                total += 1
+                local_total += 1
+
+                print(f"   Risk → Pred: {pred} | True: {true}")
+
+            # =========================
+            # FINANCIAL
+            # =========================
+            if "financial" in expected:
+                score = evaluate_financial_quality(output_text)
+                financial_scores.append(score)
+
+                print(f"   Financial Score: {score}/5")
+
+            # =========================
+            # DIFFICULTY TRACKING
+            # =========================
+            difficulty_stats[difficulty]["total"] += local_total
+            difficulty_stats[difficulty]["correct"] += local_correct
+
+            print(f"   Latency: {latency}s\n")
 
     # =========================
     # FINAL METRICS
     # =========================
+
     accuracy = correct / total if total > 0 else 0
     avg_latency = sum(latencies) / len(latencies) if latencies else 0
     avg_financial_score = (
@@ -182,16 +198,27 @@ def evaluate_system(dataset_path: str = "evaluation_dataset.json"):
     if financial_scores:
         print(f"📈 Avg Financial Quality Score: {avg_financial_score:.2f}/5")
 
+    print("\n🎯 Difficulty-wise Accuracy:")
+
+    for d in ["easy", "medium", "hard"]:
+        d_total = difficulty_stats[d]["total"]
+        d_correct = difficulty_stats[d]["correct"]
+
+        d_acc = (d_correct / d_total) if d_total > 0 else 0
+
+        print(f"{d.upper()}: {d_acc * 100:.2f}%")
 
     return {
         "accuracy": accuracy,
         "avg_latency": avg_latency,
-        "financial_score": avg_financial_score
+        "financial_score": avg_financial_score,
+        "difficulty_stats": difficulty_stats
     }
 
 
 # =========================
 # ENTRY POINT
 # =========================
+
 if __name__ == "__main__":
     evaluate_system()
