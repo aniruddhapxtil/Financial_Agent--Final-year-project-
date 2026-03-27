@@ -209,11 +209,13 @@ def evaluate_system(dataset_path: str = "evaluation_dataset.json"):
         print(f"{d.upper()}: {d_acc * 100:.2f}%")
 
     return {
-        "accuracy": accuracy,
-        "avg_latency": avg_latency,
-        "financial_score": avg_financial_score,
-        "difficulty_stats": difficulty_stats
-    }
+    "accuracy": accuracy,
+    "avg_latency": avg_latency,
+    "financial_score": avg_financial_score,
+    "financial_scores_list": financial_scores,  # 🔥 ADD THIS
+    "latencies": latencies,                    # 🔥 ADD THIS
+    "difficulty_stats": difficulty_stats
+}
 
 
 # =========================

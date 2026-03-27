@@ -1276,16 +1276,77 @@ def dashboard_screen():
         col3.metric("Financial Score", f"{res['financial_score']:.2f}/5")
 
         # OPTIONAL CHART
-        df = pd.DataFrame({
-            "Metric": ["Accuracy", "Latency", "Financial Score"],
-            "Value": [
-                res["accuracy"] * 100,
-                res["avg_latency"],
-                res["financial_score"]
-            ]
-        })
+        # df = pd.DataFrame({
+        #     "Metric": ["Accuracy", "Latency", "Financial Score"],
+        #     "Value": [
+        #         res["accuracy"] * 100,
+        #         res["avg_latency"],
+        #         res["financial_score"]
+        #     ]
+        # })
 
-        st.bar_chart(df.set_index("Metric"))
+        # st.bar_chart(df.set_index("Metric"))
+
+        import plotly.graph_objects as go
+
+        # =========================
+        # 🎯 ACCURACY CHART (GREEN)
+        # =========================
+        fig_acc = go.Figure(go.Bar(
+            x=["Accuracy"],
+            y=[res["accuracy"] * 100],
+            marker_color="green"
+        ))
+        fig_acc.update_layout(title="Accuracy (%)")
+
+        st.plotly_chart(fig_acc, use_container_width=True)
+
+        # =========================
+        # ⏱ LATENCY CHART (BLUE)
+        # =========================
+        fig_lat = go.Figure(go.Bar(
+            x=["Avg Latency"],
+            y=[res["avg_latency"]],
+            marker_color="blue"
+        ))
+        fig_lat.update_layout(title="Average Latency (sec)")
+
+        st.plotly_chart(fig_lat, use_container_width=True)
+
+        # =========================
+        # 🧠 FINANCIAL SCORE PIE (COLOR CODED)
+        # =========================
+
+        scores = res["financial_scores_list"]
+
+        # Count distribution
+        score_counts = {i: 0 for i in range(6)}  # 0–5
+
+        for s in scores:
+            score_counts[s] += 1
+
+        labels = [f"{k}/5" for k in score_counts.keys()]
+        values = list(score_counts.values())
+
+        # 🔥 COLOR MAP (important for your requirement)
+        color_map = [
+            "red",        # 0
+            "orange",     # 1
+            "yellow",     # 2
+            "lightgreen", # 3
+            "green",      # 4
+            "darkgreen"   # 5
+        ]
+
+        fig_pie = go.Figure(data=[go.Pie(
+            labels=labels,
+            values=values,
+            marker=dict(colors=color_map)
+        )])
+
+        fig_pie.update_layout(title="Financial Quality Score Distribution")
+
+        st.plotly_chart(fig_pie, use_container_width=True)
 
     # =========================
     # EXISTING LOGS

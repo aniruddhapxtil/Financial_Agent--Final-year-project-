@@ -933,9 +933,36 @@ class GraphState(TypedDict):
 def fuzzy_contains(query: str, keywords: list) -> bool:
     return any(fuzz.partial_ratio(query.lower(), kw) > 70 for kw in keywords)
 
-financial_keywords = ["financial", "valuation", "revenue", "price", "pe"]
-news_keywords = ["news", "sentiment", "headline"]
-risk_keywords = ["risk", "volatility", "beta"]
+financial_keywords = [
+    "financial", "valuation", "revenue", "profit", "income",
+    "earnings", "eps", "pe", "p/e", "ratio", "balance sheet",
+    "cash flow", "fundamentals", "growth", "margin",
+    "overvalued", "undervalued", "fair value", "intrinsic value",
+    "target price", "forecast", "outlook", "guidance",
+    "should i buy", "should i invest", "is it a good investment",
+    "long term", "short term", "analysis"
+]
+
+
+news_keywords = [
+    "news", "headline", "headlines", "sentiment",
+    "latest news", "recent news", "updates",
+    "what happened", "why is", "why did",
+    "breaking news", "market news",
+    "announcement", "acquisition", "merger",
+    "lawsuit", "scandal", "earnings call",
+    "press release"
+]
+
+risk_keywords = [
+    "risk", "volatility", "beta", "drawdown",
+    "downside", "upside risk", "uncertainty",
+    "safe", "risky", "stability",
+    "variance", "standard deviation",
+    "sharpe", "sortino",
+    "crash", "fall", "drop",
+    "exposure", "sensitivity"
+]
 
 
 # =========================
@@ -1075,7 +1102,8 @@ Return:
             agents=[fin_analyst],
             tasks=[task],
             process=Process.sequential,
-            memory = False #added for evaltionan only
+            memory = False, #added for evaltionan only,
+            max_iter=2
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})
@@ -1183,7 +1211,8 @@ Short explanation
             agents=[news_analyst],
             tasks=[task],
             process=Process.sequential,
-            memory = False #added for evaltionan only
+            memory = False, #added for evaltionan only
+            max_iter=2
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})
@@ -1291,7 +1320,8 @@ Low / Medium / High
             agents=[risk_analyst],
             tasks=[task],
             process=Process.sequential,
-            memory = False #added for evaltionan only
+            memory = False, #added for evaltionan only
+            max_iter=2
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})

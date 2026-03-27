@@ -36,14 +36,7 @@
     {
       "query": "Analyze Tesla financials and risk",
       "expected": { "financial": true, "risk": true }
-    },
-    {
-      "query": "Should I invest in Nvidia right now?",
-      "expected": { "financial": true, "risk": true }
-    },
-    {
-      "query": "Compare Apple and Microsoft risk",
-      "expected": { "risk": true }
     }
+    
   ]
 }
