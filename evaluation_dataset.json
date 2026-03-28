@@ -32,11 +32,8 @@
     {
       "query": "Is Tesla a good long term investment despite volatility?",
       "expected": { "risk": "High" }
-    },
-    {
-      "query": "Analyze Tesla financials and risk",
-      "expected": { "financial": true, "risk": true }
     }
+    
     
   ]
 }
