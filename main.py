@@ -631,7 +631,7 @@ def run_graph(query, doc_path):
 
     start_total = time.time()
 
-    tickers = extract_tickers(query)[:1]
+    tickers = extract_tickers(query)[:1] #only for eval,reomve [] for multi ticker
 
     state: GraphState = {
         "query": query,
