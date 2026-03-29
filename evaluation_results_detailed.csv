@@ -1,0 +1,91 @@
+Difficulty,Query,IsCorrect,Latency,FinancialScore,Predicted_Sentiment,Predicted_Risk
+easy,Get current price and P/E ratio for AAPL.,True,9.26,5.0,N/A,N/A
+easy,Fetch the P/E ratio for MSFT only.,True,6.57,5.0,N/A,N/A
+easy,What is the latest news headline sentiment for NVDA?,True,4.58,,Bullish,N/A
+easy,Get the 52-week high for TSLA.,True,6.75,5.0,N/A,N/A
+easy,What is the market cap of AMZN?,True,6.78,5.0,N/A,N/A
+easy,Is Google (GOOGL) news sentiment bullish or bearish?,True,4.87,,Bullish,N/A
+easy,Fetch revenue growth for META.,True,6.39,5.0,N/A,N/A
+easy,What is the beta value for NFLX?,False,3.32,,N/A,High
+easy,List 3 recent headlines for AMD.,False,5.55,,Bullish,N/A
+easy,What is the dividend yield for JPM?,True,6.29,5.0,N/A,N/A
+easy,Provide price and market cap for WMT.,True,6.17,5.0,N/A,N/A
+easy,Check the current price of DIS.,True,6.18,5.0,N/A,N/A
+easy,Is there breaking news for CRM today?,False,5.08,,Bullish,N/A
+easy,What is the debt-to-equity for INTC?,True,6.52,5.0,N/A,N/A
+easy,Provide the latest EPS for KO.,True,9.18,5.0,N/A,N/A
+easy,What is the current price of BRK-B?,True,6.62,5.0,N/A,N/A
+easy,What is the institutional ownership % for V?,True,4.73,1.0,N/A,N/A
+easy,Get the quick ratio for NKE.,True,6.44,5.0,N/A,N/A
+easy,Summarize the latest 2 news items for ORCL.,False,4.68,,Bullish,N/A
+easy,What is the trading volume for XOM?,True,6.58,5.0,N/A,N/A
+easy,Find the profit margin for MA.,True,6.78,5.0,N/A,N/A
+easy,Is PFE price above its 200-day average?,True,6.53,5.0,N/A,N/A
+easy,What is the price-to-book ratio for CSCO?,True,6.8,5.0,N/A,N/A
+easy,Fetch the latest analyst rating for ADBE.,True,7.72,,Bullish,N/A
+easy,What is the free cash flow for AVGO?,True,19.69,5.0,N/A,N/A
+easy,Identify the sector for LLY.,True,6.68,5.0,N/A,N/A
+easy,What is the short interest for GME?,False,6.8,,N/A,Low
+easy,Get the operating margin for PEP.,True,6.19,5.0,N/A,N/A
+easy,What is the risk volatility for COST?,True,6.52,,N/A,Low
+easy,What is the price-to-sales ratio for UBER?,True,6.45,5.0,N/A,N/A
+medium,Compare beta and volatility for NVDA and AMD.,True,3.86,,N/A,High
+medium,Is MSFT or GOOGL safer based on beta?,True,3.82,,N/A,Low
+medium,Compare P/E ratios of AAPL and MSFT.,True,9.24,5.0,N/A,N/A
+medium,Which has better sentiment: TSLA or BYD?,False,5.7,,Bullish,N/A
+medium,Contrast revenue growth of AMZN and WMT.,True,9.23,5.0,N/A,N/A
+medium,Does JPM or BAC have a higher ROE?,True,8.26,5.0,N/A,N/A
+medium,Compare news sentiment for Goldman and JPM.,False,5.32,,Bullish,N/A
+medium,Compare dividend yield of KO and PEP.,True,6.8,5.0,N/A,N/A
+medium,Is BTC or SPY volatility higher?,False,3.89,,N/A,Low
+medium,Compare book value per share for INTC and AMD.,True,7.36,5.0,N/A,N/A
+medium,Which has lower debt: AAPL or MSFT?,True,6.6,5.0,N/A,N/A
+medium,Compare risk metrics for XOM and CVX.,False,4.47,,N/A,Low
+medium,Compare profit margins of V and MA.,True,6.47,5.0,N/A,N/A
+medium,Is BA risk higher than the airline sector average?,False,6.04,,N/A,Low
+medium,Compare 5-year growth for NFLX and DIS.,True,7.01,5.0,N/A,N/A
+medium,Compare volatility for SMCI and NVDA.,False,4.23,,N/A,Medium
+medium,Compare R&D spending for PFE and LLY.,True,21.93,5.0,N/A,N/A
+medium,Compare PEG ratios of CRM and ADBE.,True,7.25,5.0,N/A,N/A
+medium,Compare drawdowns for TSLA and Ford.,True,3.89,,N/A,High
+medium,Compare RSI for QQQ and SPY.,False,8.18,,N/A,Low
+medium,Compare inventory turnover for TGT and WMT.,True,6.91,5.0,N/A,N/A
+medium,Compare sentiment for META and Snap.,True,5.26,,Bullish,N/A
+medium,Compare institutional buy-in for ARM and NVDA.,False,6.78,,Unknown,N/A
+medium,Compare cash flow for CSCO and IBM.,True,8.71,5.0,N/A,N/A
+medium,Compare GLD risk to TLT risk.,True,3.89,,N/A,Low
+medium,Compare news volume for GOOGL and META.,False,6.08,,Bullish,N/A
+medium,Compare P/E of SPY vs EEM.,True,6.57,5.0,N/A,N/A
+medium,Compare burn rates for RIVN and LCID.,False,6.7,,N/A,Low
+medium,Compare 50-day moving averages for CAT and DE.,False,6.52,,N/A,Low
+medium,Compare price-to-sales for PLTR and SNOW.,True,7.63,5.0,N/A,N/A
+hard,Analyze if TSLA high volatility justifies long term risk.,False,7.53,,N/A,Low
+hard,Extract top 3 risk factors from the PDF 'Risk' section.,True,4.22,1.0,N/A,N/A
+hard,Find cost pressures mentioned in the MD&A document section.,True,6.08,5.0,N/A,N/A
+hard,Is AAPL interest coverage ratio healthy based on the PDF?,True,7.23,5.0,N/A,N/A
+hard,Does NVDA's current growth offset its high P/E ratio?,False,13.35,,Unknown,N/A
+hard,Summarize META's regulatory risk from the uploaded report.,False,3.74,,N/A,High
+hard,Extract the current assets and liabilities from the PDF.,True,5.53,1.0,N/A,N/A
+hard,Does the report's guidance match recent news sentiment?,False,6.47,,Bullish,N/A
+hard,Identify any debt increases in the provided balance sheet.,True,6.51,5.0,N/A,N/A
+hard,Evaluate impact of rate hikes on this company's debt.,False,8.5,,N/A,Low
+hard,Extract revenue by segment from the document table.,True,6.28,5.0,N/A,N/A
+hard,Identify intangible asset risks mentioned in the PDF.,False,3.63,,N/A,Medium
+hard,Summarize the ESG goals from the sustainability PDF.,False,20.04,,Unknown,N/A
+hard,List pending legal cases from the 10-Q document.,False,6.36,,N/A,Low
+hard,Is the company's buyback plan sustainable per the PDF?,True,6.36,5.0,N/A,N/A
+hard,Compare document inventory levels to revenue growth.,True,6.76,5.0,N/A,N/A
+hard,Extract the unearned revenue figure from the PDF.,True,6.5,5.0,N/A,N/A
+hard,How will currency fluctuations affect international sales here?,False,7.23,,Unknown,N/A
+hard,Summarize pension obligations from the document footnotes.,False,6.84,,N/A,Low
+hard,Is the cash runway sufficient based on the PDF financials?,False,6.86,,N/A,Low
+hard,Extract executive bonus structure from the proxy section.,True,6.52,5.0,N/A,N/A
+hard,Extract GAAP to Non-GAAP adjustments from the PDF.,True,7.01,5.0,N/A,N/A
+hard,What were the primary margin concerns in the transcript?,False,7.23,,Unknown,N/A
+hard,Calculate current ratio using figures from the document.,True,9.03,5.0,N/A,N/A
+hard,Identify revenue recognition changes in the PDF notes.,False,7.34,,N/A,Low
+hard,Analyze supply chain risks mentioned in the PDF.,False,7.22,,N/A,Low
+hard,Compare lease debt to long-term debt in the PDF.,True,6.94,5.0,N/A,N/A
+hard,Is the effective tax rate trended lower in the report?,True,3.16,1.0,N/A,N/A
+hard,Extract segment EBITDA from the supplemental PDF pages.,True,2.55,1.0,N/A,N/A
+hard,Identify DSO trends from the accounts receivable section.,False,7.21,,N/A,Low
