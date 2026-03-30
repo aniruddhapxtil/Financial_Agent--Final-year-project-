@@ -117,13 +117,6 @@ rag_agent = Agent(
     llm=llm
 )
 
-recommendation_agent = Agent(
-    role="Chief Investment Strategist",
-    goal="Give final buy/sell/hold decision for {ticker}",
-    backstory="Expert in combining financials, news, and risk into decisions.",
-    llm=llm
-)
-
 # =========================
 # Graph State
 # =========================
@@ -132,7 +125,6 @@ class GraphState(TypedDict):
     tickers: List[str]
     doc_path: str
     routes: List[str]
-    is_investment: bool #aded for ecomaendation agent
     outputs: Annotated[List[str], add_messages]
 
 
@@ -173,44 +165,14 @@ risk_keywords = [
     "exposure", "sensitivity"
 ]
 
-investment_keywords = [
-    "should i buy", "should i invest",
-    "buy or sell", "good investment",
-    "worth buying", "long term investment",
-    "should i hold"
-]
 
 # =========================
 # Orchestrator
 # =========================
-# def orchestrator_node(state: GraphState):
-
-#     q = state["query"].lower()
-#     routes = []
-
-#     if state.get("doc_path"):
-#         routes.append("rag")
-
-#     if fuzzy_contains(q, financial_keywords):
-#         routes.append("financial")
-
-#     if fuzzy_contains(q, news_keywords):
-#         routes.append("news")
-
-#     if fuzzy_contains(q, risk_keywords):
-#         routes.append("risk")
-
-#     if not routes:
-#         routes = ["financial"]#only for evaltion time only..else put all
-
-#     return {"routes": routes}
-
 def orchestrator_node(state: GraphState):
 
     q = state["query"].lower()
     routes = []
-
-    is_investment = fuzzy_contains(q, investment_keywords)
 
     if state.get("doc_path"):
         routes.append("rag")
@@ -225,35 +187,94 @@ def orchestrator_node(state: GraphState):
         routes.append("risk")
 
     if not routes:
-        routes = ["financial"]
+        routes = ["financial"]#only for evaltion time only..else put all
 
-    return {
-        "routes": routes,
-        "is_investment": is_investment   # 👈 IMPORTANT
-    }
+    return {"routes": routes}
 
 
+# =========================
+# Financial Node
+# =========================
+# @traceable(name="Financial Node")
+# def financial_node(state: GraphState):
+
+#     start = time.time()
+#     results = []
+
+#     for ticker in state["tickers"]:
+
+#         task = Task(
+#             description=f"""
+# Use the provided financial tool data to analyze {ticker}.
+
+# STRICT RULES:
+# - You MUST use the tool output values.
+# - Do NOT invent numbers.
+# - If a value is missing write "Data not available".
+
+# Return a well structured markdown report.
+
+# FORMAT:
+
+# ## {ticker} Financial Summary
+
+# | Metric | Value |
+# |------|------|
+# | Current Price | |
+# | Market Cap | |
+# | PE Ratio | |
+# | 52 Week High | |
+# | 52 Week Low | |
+# | Revenue Growth | |
+
+# ### Key Insights
+# - Bullet insight about valuation
+# - Bullet insight about growth
+# - Bullet insight about profitability
+
+# ### Investment Outlook
+# Provide a short professional investment outlook (3-4 sentences).
+# """,
+#             expected_output="Structured financial markdown report",
+#             agent=fin_analyst
+#         )
+
+#         crew = Crew(
+#             agents=[fin_analyst],
+#             tasks=[task],
+#             process=Process.sequential
+#         )
+
+#         result = crew.kickoff(inputs={"ticker": ticker})
+
+#         results.append(f"### {ticker}\n{clean_markdown(result)}")
+
+#     return {
+#         "outputs": [
+#         "\n\n".join(results)
+#     ],
+#         "debug": {
+#         "agent": "financial",
+#         "latency": round(time.time()-start, 2)
+#             }
+#     }
 from concurrent.futures import ThreadPoolExecutor
 
 @traceable(name="Financial Node")
 def financial_node(state: GraphState):
+
     start = time.time()
 
     def run_task(ticker):
-        # Determine if this is a comparison based on the number of tickers
-        is_comparison = len(state["tickers"]) > 1
-        comparison_context = f"This is a comparative analysis alongside: {', '.join([t for t in state['tickers'] if t != ticker])}." if is_comparison else ""
 
         task = Task(
             description=f"""
 Use the provided financial tool data to analyze {ticker}.
-{comparison_context}
 
 STRICT RULES:
-- Use tool output only.
-- Do NOT invent numbers.
-- If missing → "Data not available".
-- If this is a comparison, ensure the metrics are clearly presented for side-by-side reading.
+- Use tool output only
+- Do NOT invent numbers
+- If missing → "Data not available"
 
 Return:
 
@@ -269,7 +290,7 @@ Return:
 | Revenue Growth | |
 
 ### Key Insights
-- 3 bullet points (focus on relative strength if comparing)
+- 3 bullet points
 
 ### Investment Outlook
 3-4 lines
@@ -282,23 +303,81 @@ Return:
             agents=[fin_analyst],
             tasks=[task],
             process=Process.sequential,
-            memory=False,
+            memory = False, #added for evaltionan only,
             max_iter=2
         )
 
         result = crew.kickoff(inputs={"ticker": ticker})
+
         return f"### {ticker}\n{clean_markdown(result)}"
 
+    # 🔥 PARALLEL EXECUTION
     with ThreadPoolExecutor() as executor:
         results = list(executor.map(run_task, state["tickers"]))
 
     return {
-        "outputs": ["\n\n".join(results)],
+        "outputs": [
+            "\n\n".join(results)
+        ],
         "debug": {
             "agent": "financial",
             "latency": round(time.time() - start, 2)
         }
     }
+
+# =========================
+# News Node
+# =========================
+# @traceable(name="News Node")
+# def news_node(state: GraphState):
+
+#     start = time.time()
+#     results = []
+
+#     for ticker in state["tickers"]:
+
+#         task = Task(
+#             description=f"""
+# Analyze latest news for {ticker}.
+
+# Return structured markdown:
+
+# ## {ticker} News Sentiment
+
+# ### Top Headlines
+# - headline 1
+# - headline 2
+# - headline 3
+
+# ### Overall Sentiment
+# Bullish / Neutral / Bearish
+
+# ### Key Impact
+# Short explanation.
+# """,
+#             expected_output="News sentiment report",
+#             agent=news_analyst
+#         )
+
+#         crew = Crew(
+#             agents=[news_analyst],
+#             tasks=[task],
+#             process=Process.sequential
+#         )
+
+#         result = crew.kickoff(inputs={"ticker": ticker})
+
+#         results.append(f"### {ticker}\n{clean_markdown(result)}")
+
+#     return {
+#          "outputs": [
+#         "\n\n".join(results)
+#     ],
+#         "debug": {
+#         "agent": "news",
+#         "latency": round(time.time()-start, 2)
+#         }
+#     }
 
 
 @traceable(name="News Node")
@@ -356,7 +435,58 @@ Short explanation
     }
 
 
+# =========================
+# Risk Node
+# =========================
+# @traceable(name="Risk Node")
+# def risk_node(state: GraphState):
 
+#     start = time.time()
+#     results = []
+
+#     for ticker in state["tickers"]:
+
+#         task = Task(
+#             description=f"""
+# Assess investment risk for {ticker}.
+
+# Return markdown format:
+
+# ## {ticker} Risk Assessment
+
+# **Beta:**  
+# **Volatility:**
+
+# ### Risk Insights
+# - point 1
+# - point 2
+
+# ### Overall Risk Level
+# Low / Medium / High
+# """,
+#             expected_output="Risk analysis report",
+#             agent=risk_analyst
+#         )
+
+#         crew = Crew(
+#             agents=[risk_analyst],
+#             tasks=[task],
+#             process=Process.sequential
+#         )
+
+#         result = crew.kickoff(inputs={"ticker": ticker})
+
+#         results.append(f"### {ticker}\n{clean_markdown(result)}")
+
+#     return {
+#         "outputs": [
+#         "\n\n".join(results)
+#     ],
+#         "debug": {
+#         "agent": "risk",
+#         "latency": round(time.time()-start, 2)
+#         }
+#     }
 from concurrent.futures import ThreadPoolExecutor
 
 @traceable(name="Risk Node")
@@ -453,58 +583,6 @@ Format response in clear markdown sections.
         }
     }
 
-@traceable(name="Recommendation Node")
-def recommendation_node(state: GraphState):
-
-    start = time.time()
-
-    # combined_context = "\n\n".join(state["outputs"])
-    combined_context = "\n\n".join(
-    [msg.content if hasattr(msg, "content") else str(msg) 
-     for msg in state["outputs"]]
-)
-
-    task = Task(
-        description=f"""
-Based ONLY on the analysis below:
-
-{combined_context}
-
-Give FINAL decision:
-
-## Final Recommendation
-Buy / Hold / Sell
-
-## Confidence
-0-100%
-
-## Reasoning
-- 2 bullet points
-
-RULES:
-- Use only given analysis
-- No hallucination
-""",
-        expected_output="Final recommendation",
-        agent=recommendation_agent
-    )
-
-    crew = Crew(
-        agents=[recommendation_agent],
-        tasks=[task],
-        process=Process.sequential,
-        memory=False
-    )
-
-    result = crew.kickoff()
-
-    return {
-        "outputs": [clean_markdown(result)],
-        "debug": {
-            "agent": "recommendation",
-            "latency": round(time.time() - start, 2)
-        }
-    }
 
 # =========================
 # Build Workflow
@@ -516,7 +594,6 @@ workflow.add_node("financial", financial_node)
 workflow.add_node("news", news_node)
 workflow.add_node("risk", risk_node)
 workflow.add_node("rag", rag_node)
-workflow.add_node("recommendation", recommendation_node)
 
 workflow.set_entry_point("orchestrator")
 
@@ -525,21 +602,10 @@ workflow.add_conditional_edges(
     lambda s: s["routes"]
 )
 
-# workflow.add_edge("financial", END)
-# workflow.add_edge("news", END)
-# workflow.add_edge("risk", END)
+workflow.add_edge("financial", END)
+workflow.add_edge("news", END)
+workflow.add_edge("risk", END)
 workflow.add_edge("rag", END)
-
-def route_after_analysis(state: GraphState):
-    if state.get("is_investment"):
-        return ["recommendation"]
-    return [END]
-
-workflow.add_conditional_edges("financial", route_after_analysis)
-workflow.add_conditional_edges("news", route_after_analysis)
-workflow.add_conditional_edges("risk", route_after_analysis)
-
-workflow.add_edge("recommendation", END)
 
 app = workflow.compile()
 
@@ -565,14 +631,13 @@ def run_graph(query, doc_path):
 
     start_total = time.time()
 
-    tickers = extract_tickers(query)
+    tickers = extract_tickers(query)[:1] #only for eval,reomve [] for multi ticker
 
     state: GraphState = {
         "query": query,
         "tickers": tickers,
         "doc_path": doc_path,
         "routes": [],
-        "is_investment": False,   # 👈 ADD
         "outputs": []
     }
 
