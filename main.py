@@ -342,6 +342,20 @@ Return:
 
 ### Overall Risk Level
 Low / Medium / High
+
+### Investment Recommendation
+Buy / Sell / Hold
+
+### Reasoning
+- 2 short bullet points explaining the recommendation
+
+STRICT RULES:
+- Recommendation must be consistent with risk level
+    - Low risk → Buy or Hold
+    - Medium risk → Hold
+    - High risk → Sell or cautious Hold
+- Do NOT invent numbers
+- Base reasoning ONLY on tool output
 """,
             expected_output="Risk analysis report",
             agent=risk_analyst

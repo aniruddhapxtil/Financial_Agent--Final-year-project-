@@ -229,15 +229,15 @@ def evaluate_system(dataset_path: str = "evaluation_dataset.json"):
     export_evaluation_report(results_for_csv)
 
 # In evaluation.py - Ensure the return block looks exactly like this:
-return {
-    "accuracy": accuracy,
-    "avg_latency": avg_latency,
-    "financial_score": avg_financial_score,
-    "financial_scores_list": financial_scores,  # 👈 THIS WAS MISSING OR MISNAMED
-    "latencies": latencies,                    # 👈 NEEDED FOR THE BAR CHART
-    "difficulty_stats": difficulty_stats,
-    "detailed_results": results_for_csv
-}
+    return {
+        "accuracy": accuracy,
+        "avg_latency": avg_latency,
+        "financial_score": avg_financial_score,
+        "financial_scores_list": financial_scores,  # 👈 THIS WAS MISSING OR MISNAMED
+        "latencies": latencies,                    # 👈 NEEDED FOR THE BAR CHART
+        "difficulty_stats": difficulty_stats,
+        "detailed_results": results_for_csv
+    }
 
 
 # =========================
