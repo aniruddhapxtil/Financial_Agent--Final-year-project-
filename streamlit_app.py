@@ -626,7 +626,6 @@ def run_eval_cached():
 # =========================
 st.set_page_config(
     page_title="Fin-Agent AI Pro",
-    page_icon="📊",
     layout="wide"
 )
 
@@ -650,6 +649,12 @@ if "chat_history" not in st.session_state:
 
 if "current_chat_id" not in st.session_state:
     st.session_state.current_chat_id = None
+
+if "uploaded_files_list" not in st.session_state:
+    st.session_state.uploaded_files_list = []
+
+if "selected_files" not in st.session_state:
+    st.session_state.selected_files = set()
 
 
 # =========================
@@ -753,38 +758,137 @@ def render_graph(routes):
 # AUTH SCREEN
 # =========================
 def auth_screen():
-    st.title("📊 Fin-Agent AI")
+    # Initialize auth mode state
+    if "auth_mode" not in st.session_state:
+        st.session_state.auth_mode = "login"
 
-    tab1, tab2 = st.tabs(["Login", "Sign Up"])
+    # Apply centered layout with custom CSS
+    st.markdown("""
+    <style>
+        .centered-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .auth-box {
+            width: 100%;
+            max-width: 400px;
+            padding: 40px;
+            border-radius: 10px;
+        }
+        .auth-title {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .auth-input {
+            margin-bottom: 20px;
+        }
+        .auth-button {
+            width: 100%;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        .toggle-text {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14px;
+        }
+        .toggle-link {
+            color: #FF6B6B;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 600;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-    with tab1:
-        user = st.text_input("Username")
-        pw = st.text_input("Password", type="password")
+    # Center the content
+    col1, col2, col3 = st.columns([1, 2, 1])
 
-        if st.button("Login"):
-            if db.check_user(user, pw):
-                st.session_state.logged_in = True
-                st.session_state.username = user
+    with col2:
+        # Title
+        st.markdown("""
+        <div class="auth-title">
+            <h1>Fin-Agent AI</h1>
+        </div>
+        """, unsafe_allow_html=True)
 
-                chats = db.get_user_chats(user)
-                chat_id = chats[0][0] if chats else db.create_chat(user)
+        # LOGIN MODE
+        if st.session_state.auth_mode == "login":
+            st.markdown("<h2 style='text-align: center;'>Login</h2>", unsafe_allow_html=True)
+            
+            user = st.text_input("Username", key="login_user")
+            pw = st.text_input("Password", type="password", key="login_pw")
 
-                st.session_state.current_chat_id = chat_id
-                st.session_state.chat_history = db.get_chat_messages(chat_id)
+            col_btn1, col_btn2 = st.columns(2)
+            
+            with col_btn1:
+                if st.button("Login", use_container_width=True, key="login_btn"):
+                    if db.check_user(user, pw):
+                        st.session_state.logged_in = True
+                        st.session_state.username = user
 
+                        chats = db.get_user_chats(user)
+                        chat_id = chats[0][0] if chats else db.create_chat(user)
+
+                        st.session_state.current_chat_id = chat_id
+                        st.session_state.chat_history = db.get_chat_messages(chat_id)
+
+                        st.rerun()
+                    else:
+                        st.error("Invalid credentials")
+            
+            with col_btn2:
+                if st.button("Clear", use_container_width=True):
+                    st.session_state.auth_mode = "login"
+                    st.rerun()
+
+            # Toggle to Sign Up
+            st.markdown("""
+            <div class="toggle-text">
+                Don't have an account? <span class="toggle-link" onclick="window.location.reload();">Sign Up</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button("Create new account →", use_container_width=True, key="switch_to_signup"):
+                st.session_state.auth_mode = "signup"
                 st.rerun()
-            else:
-                st.error("Invalid credentials")
 
-    with tab2:
-        new_user = st.text_input("New Username")
-        new_pw = st.text_input("New Password", type="password")
+        # SIGNUP MODE
+        elif st.session_state.auth_mode == "signup":
+            st.markdown("<h2 style='text-align: center;'>Sign Up</h2>", unsafe_allow_html=True)
+            
+            new_user = st.text_input("Username", key="signup_user")
+            new_pw = st.text_input("Password", type="password", key="signup_pw")
+            confirm_pw = st.text_input("Confirm Password", type="password", key="confirm_pw")
 
-        if st.button("Register"):
-            if db.add_user(new_user, new_pw):
-                st.success("Account created!")
-            else:
-                st.error("Username exists")
+            col_btn1, col_btn2 = st.columns(2)
+            
+            with col_btn1:
+                if st.button("Register", use_container_width=True, key="register_btn"):
+                    if new_pw != confirm_pw:
+                        st.error("Passwords do not match")
+                    elif len(new_user) < 3:
+                        st.error("Username must be at least 3 characters")
+                    elif len(new_pw) < 6:
+                        st.error("Password must be at least 6 characters")
+                    elif db.add_user(new_user, new_pw):
+                        st.success("Account created! Please login.")
+                        st.session_state.auth_mode = "login"
+                        st.rerun()
+                    else:
+                        st.error("Username already exists")
+            
+            with col_btn2:
+                if st.button("Clear", use_container_width=True):
+                    st.session_state.auth_mode = "signup"
+                    st.rerun()
+
+            # Toggle to Login
+            if st.button("← Back to Login", use_container_width=True, key="switch_to_login"):
+                st.session_state.auth_mode = "login"
+                st.rerun()
 
 
 # =========================
@@ -813,7 +917,7 @@ def main_chat_screen():
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("➕ New"):
+            if st.button("➕ New Chat"):
                 chat_id = db.create_chat(st.session_state.username)
                 st.session_state.current_chat_id = chat_id
                 st.session_state.chat_history = []
@@ -826,7 +930,7 @@ def main_chat_screen():
 
         st.divider()
 
-        st.subheader("💬 Previous Chats")
+        st.subheader("Previous Chats")
 
         chats = db.get_user_chats(st.session_state.username)
 
@@ -838,7 +942,57 @@ def main_chat_screen():
 
         st.divider()
 
-        uploaded_file = st.file_uploader("Upload PDF / TXT", type=["pdf", "txt"])
+        # FILE UPLOAD WITH MULTIPLE FILES SUPPORT
+        uploaded_files = st.file_uploader(
+            "Upload PDF / TXT",
+            type=["pdf", "txt"],
+            accept_multiple_files=True
+        )
+
+        # ADD NEW FILES TO SESSION STATE
+        if uploaded_files:
+            for file in uploaded_files:
+                # Check if file is not already in the list (by name)
+                if not any(f["name"] == file.name for f in st.session_state.uploaded_files_list):
+                    st.session_state.uploaded_files_list.append({
+                        "name": file.name,
+                        "data": file.getvalue()
+                    })
+
+        # DISPLAY UPLOADED FILES WITH CHECKBOXES
+        if st.session_state.uploaded_files_list:
+            for idx, file_info in enumerate(st.session_state.uploaded_files_list):
+                col1, col2, col3 = st.columns([0.08, 0.72, 0.2])
+                
+                with col1:
+                    # Checkbox for file selection (hidden label)
+                    is_selected = st.checkbox(
+                        label=" ",
+                        value=idx in st.session_state.selected_files,
+                        key=f"checkbox_{idx}_{file_info['name']}",
+                        label_visibility="collapsed"
+                    )
+                    
+                    if is_selected:
+                        st.session_state.selected_files.add(idx)
+                    else:
+                        st.session_state.selected_files.discard(idx)
+                
+                with col2:
+                    st.caption(f"📄 {file_info['name']}")
+                
+                with col3:
+                    if st.button("❌", key=f"delete_{idx}_{file_info['name']}"):
+                        st.session_state.uploaded_files_list.pop(idx)
+                        st.session_state.selected_files.discard(idx)
+                        st.rerun()
+            
+            # Show selection summary
+            if st.session_state.selected_files:
+                selected_count = len(st.session_state.selected_files)
+                st.success(f"✅ {selected_count} file(s) selected for analysis")
+            else:
+                st.warning("⚠️ No files selected. Check the checkboxes to use files for RAG analysis")
 
     col1, col2 = st.columns([8, 2])
 
@@ -882,11 +1036,19 @@ def main_chat_screen():
         with st.chat_message("assistant"):
             with st.spinner("Analyzing..."):
 
-                doc_path = ""
-                if uploaded_file:
-                    with tempfile.NamedTemporaryFile(delete=False) as tmp:
-                        tmp.write(uploaded_file.read())
-                        doc_path = tmp.name
+                doc_paths = []
+                
+                # PROCESS SELECTED FILES ONLY
+                if st.session_state.selected_files and st.session_state.uploaded_files_list:
+                    for idx in sorted(st.session_state.selected_files):
+                        if idx < len(st.session_state.uploaded_files_list):
+                            file_info = st.session_state.uploaded_files_list[idx]
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_info['name'].split('.')[-1]}") as tmp:
+                                tmp.write(file_info["data"])
+                                doc_paths.append(tmp.name)
+                
+                # CONVERT LIST TO COMMA-SEPARATED STRING FOR FUNCTION
+                doc_path = ",".join(doc_paths) if doc_paths else ""
 
                 result, debug_data = run_graph(prompt, doc_path)
 
@@ -953,7 +1115,7 @@ def main_chat_screen():
 
 def dashboard_screen():
 
-    st.title("📊 Multi-Agent Execution Dashboard")
+    st.title("Multi-Agent Execution Dashboard")
 
     if st.button("⬅ Back to Chat"):
         st.session_state.page = "chat"
@@ -963,9 +1125,9 @@ def dashboard_screen():
     # 🔥 NEW: EVALUATION SECTION
     # =========================
     st.divider()
-    st.subheader("📊 System Benchmarking")
+    st.subheader("System Benchmarking")
 
-    if st.button("🚀 Run Evaluation Benchmark"):
+    if st.button("Run Evaluation Benchmark"):
 
         with st.spinner("Running evaluation on dataset..."):
 
@@ -1061,7 +1223,7 @@ def dashboard_screen():
     # EXISTING LOGS
     # =========================
     st.divider()
-    st.subheader("🧠 Execution Logs")
+    st.subheader("Execution Logs")
 
     logs = st.session_state.get("debug_logs", [])
 

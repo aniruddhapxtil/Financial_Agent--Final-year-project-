@@ -111,8 +111,8 @@ risk_analyst = Agent(
 
 rag_agent = Agent(
     role="Document Intelligence Agent",
-    goal="Answer questions strictly from document {doc_path}",
-    backstory="Expert in financial document analysis.",
+    goal="Answer user questions by reading and analyzing uploaded documents, extracting relevant information and providing accurate answers based solely on document content",
+    backstory="Expert financial document analyst skilled at extracting insights from PDFs, text files, and reports. Always cites sources and clearly indicates if information is not found in documents.",
     tools=[read_uploaded_document],
     llm=llm
 )
@@ -174,7 +174,8 @@ def orchestrator_node(state: GraphState):
     q = state["query"].lower()
     routes = []
 
-    if state.get("doc_path"):
+    # Only add RAG route if files are actually selected (doc_path is not empty)
+    if state.get("doc_path") and state.get("doc_path").strip():
         routes.append("rag")
 
     if fuzzy_contains(q, financial_keywords):
@@ -187,7 +188,7 @@ def orchestrator_node(state: GraphState):
         routes.append("risk")
 
     if not routes:
-        routes = ["financial"]#only for evaltion time only..else put all
+        routes = ["financial"]
 
     return {"routes": routes}
 
@@ -398,13 +399,20 @@ def rag_node(state: GraphState):
 
     task = Task(
         description=f"""
-Read document {state['doc_path']} and answer:
+You are a document analysis expert. You MUST use the read_uploaded_document tool to read the uploaded file(s) and extract relevant information.
 
-{state['query']}
+Query: {state['query']}
 
-Format response in clear markdown sections.
+Instructions:
+1. First, use the read_uploaded_document tool with file path: {state['doc_path']}
+2. Read and analyze the document content carefully
+3. Answer the question STRICTLY based on the document content
+4. If the answer is not found in the document, say "This information is not available in the uploaded documents"
+5. Always cite which document(s) you're referencing in your answer
+
+Format your response in clear markdown sections.
 """,
-        expected_output="Document based answer",
+        expected_output="Detailed answer based on document content with citations",
         agent=rag_agent
     )
 
@@ -412,18 +420,18 @@ Format response in clear markdown sections.
         agents=[rag_agent],
         tasks=[task],
         process=Process.sequential,
-        memory = False #added for evaltionan only
+        memory=False
     )
 
     result = crew.kickoff()
 
     return {
-         "outputs": [
-        clean_markdown(result)
-    ],
+        "outputs": [
+            clean_markdown(result)
+        ],
         "debug": {
-        "agent": "rag",
-        "latency": round(time.time()-start, 2)
+            "agent": "rag",
+            "latency": round(time.time() - start, 2)
         }
     }
 

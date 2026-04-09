@@ -121,20 +121,33 @@ def fetch_risk_metrics(ticker: str):
 def read_uploaded_document(file_path: str):
     """
     Reads uploaded documents (PDF, TXT, CSV) for RAG-based question answering.
+    Supports multiple files separated by commas.
     """
     try:
-        ext = os.path.splitext(file_path)[1].lower()
+        all_content = []
+        
+        # Handle multiple file paths separated by commas
+        file_paths = [fp.strip() for fp in file_path.split(",") if fp.strip()]
+        
+        for single_path in file_paths:
+            ext = os.path.splitext(single_path)[1].lower()
 
-        if ext == ".pdf":
-            loader = PyPDFLoader(file_path)
-        elif ext == ".csv":
-            loader = CSVLoader(file_path)
-        else:
-            loader = TextLoader(file_path)
+            if ext == ".pdf":
+                loader = PyPDFLoader(single_path)
+            elif ext == ".csv":
+                loader = CSVLoader(single_path)
+            else:
+                loader = TextLoader(single_path)
 
-        docs = loader.load()
-        content = "\n".join(d.page_content for d in docs)
-
-        return content[:4000]  # safe context size
+            docs = loader.load()
+            content = "\n".join(d.page_content for d in docs)
+            
+            # Add filename header to distinguish content from different files
+            file_name = os.path.basename(single_path)
+            all_content.append(f"=== Content from {file_name} ===\n{content}")
+        
+        combined_content = "\n\n".join(all_content)
+        return combined_content[:8000]  # safe context size for multiple files
+        
     except Exception as e:
         return f"Error reading document: {str(e)}"
