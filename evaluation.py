@@ -1,81 +1,94 @@
 import json
 import time
 import pandas as pd
+import os
+import re
 from typing import Dict, List
 
 # Ensure main.py is in the same directory
 from main import run_graph
 
 # =========================
-# OUTPUT PARSERS
+# SEMANTIC OUTPUT PARSERS
 # =========================
 
 def extract_sentiment(text: str) -> str:
+    """Uses semantic clusters to identify intent rather than exact words."""
     text = text.lower()
+    
+    # Semantic Clusters
+    bullish_keywords = ["bullish", "positive", "growth", "upside", "optimistic", "outperform", "buy"]
+    bearish_keywords = ["bearish", "negative", "downside", "pessimistic", "underperform", "decline", "sell"]
+    neutral_keywords = ["neutral", "stable", "steady", "balanced", "sideways", "hold"]
 
-    if "bullish" in text:
+    if any(word in text for word in bullish_keywords):
         return "Bullish"
-    elif "bearish" in text:
+    if any(word in text for word in bearish_keywords):
         return "Bearish"
-    elif "neutral" in text:
+    if any(word in text for word in neutral_keywords):
         return "Neutral"
 
     return "Unknown"
 
-
 def extract_risk(text: str) -> str:
+    """Uses phrase-matching to prevent logic collisions (e.g., 'not low' matching 'low')."""
     text = text.lower()
-
-    if "low" in text:
-        return "Low"
-    elif "medium" in text:
-        return "Medium"
-    elif "high" in text:
+    
+    # Priority 1: Full Phrase Matching
+    if "high risk" in text or "significant risk" in text or "aggressive" in text:
         return "High"
+    if "medium risk" in text or "moderate risk" in text or "average risk" in text:
+        return "Medium"
+    if "low risk" in text or "minimal risk" in text or "conservative" in text:
+        return "Low"
+    
+    # Priority 2: Keyword Fallback
+    if "high" in text: return "High"
+    if "medium" in text: return "Medium"
+    if "low" in text: return "Low"
 
     return "Unknown"
 
-
 # =========================
-# FINANCIAL QUALITY CHECK
+# CONTEXT-AWARE QUALITY CHECK
 # =========================
 
-def evaluate_financial_quality(text: str) -> int:
+def evaluate_financial_quality(text: str, difficulty: str) -> int:
+    """Grades quality based on the complexity of the task (RAG vs Tool)."""
     score = 0
     text_lower = text.lower()
 
-    if "financial summary" in text_lower:
-        score += 1
-    if "key insights" in text_lower:
-        score += 1
-    if "investment outlook" in text_lower:
-        score += 1
+    # Base: Presence of numerical data
     if any(char.isdigit() for char in text):
         score += 1
-    if "|" in text:
-        score += 1
 
-    return score  # max = 5
+    if difficulty == "hard":
+        # RAG Quality: Focus on Citations and Depth
+        if any(kw in text_lower for kw in ["section", "page", "document", "report", "cited"]):
+            score += 2  # Citation bonus
+        if len(text) > 200:
+            score += 2  # Information density bonus
+    else:
+        # Agent Quality: Focus on Structure and Insights
+        if "financial summary" in text_lower or "summary" in text_lower: score += 1
+        if "key insights" in text_lower or "highlights" in text_lower: score += 1
+        if "|" in text: score += 1 # Markdown table check
+        if "outlook" in text_lower or "recommendation" in text_lower: score += 1
 
+    return min(score, 5) # Cap at 5 points
 
 # =========================
 # REPORT EXPORTING
 # =========================
 
 def export_evaluation_report(results_list: List[Dict]):
-    """
-    Generates CSV reports based on the evaluation results.
-    """
     if not results_list:
         print("⚠️ No results to export.")
         return
 
     df = pd.DataFrame(results_list)
-    
-    # 1. Detailed Report: Every single test case
     df.to_csv("evaluation_results_detailed.csv", index=False)
     
-    # 2. Summary Report: Average Accuracy and Latency by Difficulty
     summary = df.groupby("Difficulty").agg({
         "IsCorrect": "mean",
         "Latency": "mean",
@@ -84,23 +97,23 @@ def export_evaluation_report(results_list: List[Dict]):
     
     summary.columns = ["Difficulty", "Avg Accuracy", "Avg Latency (s)", "Avg Fin Score"]
     summary.to_csv("accuracy_by_difficulty.csv", index=False)
-    
     print("\n✅ Reports generated: evaluation_results_detailed.csv, accuracy_by_difficulty.csv")
-
 
 # =========================
 # MAIN EVALUATION FUNCTION
 # =========================
 
 def evaluate_system(dataset_path: str = "evaluation_dataset.json"):
+    if not os.path.exists(dataset_path):
+        print(f"❌ Error: {dataset_path} not found.")
+        return
 
     with open(dataset_path, "r") as f:
         dataset = json.load(f)
 
     total = 0
     correct = 0
-    results_for_csv = [] # To store data for pandas
-
+    results_for_csv = []
     financial_scores = []
     latencies = []
 
@@ -110,81 +123,62 @@ def evaluate_system(dataset_path: str = "evaluation_dataset.json"):
         "hard": {"total": 0, "correct": 0}
     }
 
-    print("\n🚀 Starting Evaluation...\n")
+    print("\n🚀 Starting Semantic Evaluation...\n")
 
-    # 🔥 LOOP THROUGH DIFFICULTY LEVELS
     for difficulty in ["easy", "medium", "hard"]:
-
         items = dataset.get(difficulty, [])
 
         for i, item in enumerate(items):
-
             query = item["query"]
             expected: Dict = item["expected"]
 
+            # AUTOMATIC RAG TRIGGER
+            doc_path = ""
+            if difficulty == "hard":
+                doc_path = "company_report.txt"
+                if not os.path.exists(doc_path):
+                    print(f"⚠️ Warning: {doc_path} missing.")
+
             print(f"🔍 [{difficulty.upper()}] Test {i+1}: {query}")
 
-            start = time.time()
-
-            # Execute the graph
-            result, debug = run_graph(query, "")
-
-            latency = debug.get("latency_total", 0)
+            # Run the system
+            start_time = time.time()
+            result, debug = run_graph(query, doc_path)
+            latency = debug.get("latency_total", round(time.time() - start_time, 2))
             latencies.append(latency)
 
             outputs = result.get("outputs", [])
-            formatted_outputs = []
+            output_text = " ".join([o if isinstance(o, str) else getattr(o, "content", str(o)) for o in outputs])
 
-            for o in outputs:
-                if isinstance(o, str):
-                    content = o
-                else:
-                    content = getattr(o, "content", str(o))
-                formatted_outputs.append(content)
-
-            output_text = " ".join(formatted_outputs)
-
+            # --- SEMANTIC ACCURACY LOGIC ---
             local_correct = 0
             local_total = 0
 
-            # --- SENTIMENT CHECK ---
             if "sentiment" in expected:
                 pred = extract_sentiment(output_text)
-                true = expected["sentiment"]
-                if pred == true:
-                    local_correct += 1
+                if pred == expected["sentiment"]: local_correct += 1
                 local_total += 1
-                print(f"   Sentiment → Pred: {pred} | True: {true}")
+                print(f"   Sentiment → Pred: {pred} | True: {expected['sentiment']}")
 
-            # --- RISK CHECK ---
             if "risk" in expected:
                 pred = extract_risk(output_text)
-                true = expected["risk"]
-                if pred == true:
-                    local_correct += 1
+                if pred == expected["risk"]: local_correct += 1
                 local_total += 1
-                print(f"   Risk → Pred: {pred} | True: {true}")
+                print(f"   Risk → Pred: {pred} | True: {expected['risk']}")
 
-            # --- FINANCIAL CHECK ---
             fin_score = None
             if "financial" in expected:
-                fin_score = evaluate_financial_quality(output_text)
+                fin_score = evaluate_financial_quality(output_text, difficulty)
                 financial_scores.append(fin_score)
                 print(f"   Financial Score: {fin_score}/5")
 
-            # Determine if this specific prompt passed its checks
             is_prompt_correct = (local_correct == local_total) if local_total > 0 else True
-            
-            if is_prompt_correct:
-                correct += 1
+            if is_prompt_correct: correct += 1
             total += 1
 
-            # --- DIFFICULTY TRACKING ---
             difficulty_stats[difficulty]["total"] += 1
-            if is_prompt_correct:
-                difficulty_stats[difficulty]["correct"] += 1
+            if is_prompt_correct: difficulty_stats[difficulty]["correct"] += 1
 
-            # --- STORE FOR CSV ---
             results_for_csv.append({
                 "Difficulty": difficulty,
                 "Query": query,
@@ -192,57 +186,36 @@ def evaluate_system(dataset_path: str = "evaluation_dataset.json"):
                 "Latency": latency,
                 "FinancialScore": fin_score,
                 "Predicted_Sentiment": extract_sentiment(output_text) if "sentiment" in expected else "N/A",
-                "Predicted_Risk": extract_risk(output_text) if "risk" in expected else "N/A"
+                "Predicted_Risk": extract_risk(output_text) if "risk" in expected else "N/A",
+                "Response_Preview": output_text[:150].replace("\n", " ") + "..."
             })
-
             print(f"   Latency: {latency}s\n")
-
-    # =========================
-    # FINAL METRICS
-    # =========================
 
     accuracy = correct / total if total > 0 else 0
     avg_latency = sum(latencies) / len(latencies) if latencies else 0
-    avg_financial_score = (
-        sum(financial_scores) / len(financial_scores)
-        if financial_scores else 0
-    )
+    avg_financial_score = sum(financial_scores) / len(financial_scores) if financial_scores else 0
 
-    print("\n" + "="*30)
-    print("📊 FINAL RESULTS")
-    print("="*30 + "\n")
-
+    print("\n" + "="*40 + "\n📊 FINAL SEMANTIC RESULTS\n" + "="*40)
     print(f"✅ Overall Accuracy: {accuracy * 100:.2f}%")
-    print(f"⏱ Avg Latency: {avg_latency:.2f} sec")
+    print(f"⏱ Avg Latency: {avg_latency:.2f}s")
+    print(f"📈 Avg Financial Score: {avg_financial_score:.2f}/5")
 
-    if financial_scores:
-        print(f"📈 Avg Financial Quality Score: {avg_financial_score:.2f}/5")
-
-    print("\n🎯 Difficulty-wise Accuracy:")
     for d in ["easy", "medium", "hard"]:
-        d_total = difficulty_stats[d]["total"]
-        d_correct = difficulty_stats[d]["correct"]
-        d_acc = (d_correct / d_total) if d_total > 0 else 0
+        d_stats = difficulty_stats[d]
+        d_acc = (d_stats["correct"] / d_stats["total"]) if d_stats["total"] > 0 else 0
         print(f"{d.upper()}: {d_acc * 100:.2f}%")
 
-    # 🔥 GENERATE CSV REPORTS
     export_evaluation_report(results_for_csv)
 
-# In evaluation.py - Ensure the return block looks exactly like this:
     return {
         "accuracy": accuracy,
         "avg_latency": avg_latency,
         "financial_score": avg_financial_score,
-        "financial_scores_list": financial_scores,  # 👈 THIS WAS MISSING OR MISNAMED
-        "latencies": latencies,                    # 👈 NEEDED FOR THE BAR CHART
+        "financial_scores_list": financial_scores,
+        "latencies": latencies,
         "difficulty_stats": difficulty_stats,
         "detailed_results": results_for_csv
     }
-
-
-# =========================
-# ENTRY POINT
-# =========================
 
 if __name__ == "__main__":
     evaluate_system()

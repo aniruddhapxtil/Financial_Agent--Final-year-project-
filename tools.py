@@ -30,23 +30,31 @@ NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 #         "currency": info.get("currency"),
 #     }
 
+# In tools.py
+
+# In tools.py
 @tool("fetch_stock_data")
 def fetch_stock_data(ticker: str):
     """Fetch stock price, valuation, and growth metrics."""
-    stock = yf.Ticker(ticker)
-    info = stock.info
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
 
-    return {
-        "price": info.get("currentPrice"),
-        "market_cap": info.get("marketCap"),
-        "pe_ratio": info.get("trailingPE"),
-        "revenue_growth": info.get("revenueGrowth"),
-        "ebitda_margins": info.get("ebitdaMargins"),
-        "currency": info.get("currency"),
-        "source": "Yahoo Finance (via yfinance)"
-    }
-
-
+        # Select only essential keys to keep token count low
+        essential_keys = {
+            "currentPrice": info.get("currentPrice"),
+            "marketCap": info.get("marketCap"),
+            "trailingPE": info.get("trailingPE"),
+            "revenueGrowth": info.get("revenueGrowth"),
+            "fiftyTwoWeekHigh": info.get("fiftyTwoWeekHigh"),
+            "fiftyTwoWeekLow": info.get("fiftyTwoWeekLow"),
+            "currency": info.get("currency"),
+        }
+        
+        # Remove None values
+        return {k: v for k, v in essential_keys.items() if v is not None}
+    except Exception as e:
+        return {"error": f"Failed to fetch data for {ticker}: {str(e)}"}
 # @tool("fetch_news_and_sentiment")
 # def fetch_news_and_sentiment(ticker: str):
 #     """Fetch latest news headlines for sentiment analysis."""

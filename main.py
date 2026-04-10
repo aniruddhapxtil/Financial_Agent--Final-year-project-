@@ -79,7 +79,7 @@ llm = LLM(
     base_url="https://integrate.api.nvidia.com/v1",
     provider="openai",
     temperature=0,
-    max_tokens=300 #change to 1024 when not doing evaltion
+    max_tokens=1024 #change to 1024 when not doing evaltion
 )
 
 # =========================
@@ -483,7 +483,7 @@ def run_graph(query, doc_path):
 
     start_total = time.time()
 
-    tickers = extract_tickers(query)
+    tickers = extract_tickers(query)[:2]
 
     state: GraphState = {
         "query": query,
