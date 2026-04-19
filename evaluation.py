@@ -103,7 +103,7 @@ def export_evaluation_report(results_list: List[Dict]):
 # MAIN EVALUATION FUNCTION
 # =========================
 
-def evaluate_system(dataset_path: str = "evaluation_dataset.json"):
+def evaluate_system(dataset_path: str = "evaluation_dataset_demo.json"):
     if not os.path.exists(dataset_path):
         print(f"❌ Error: {dataset_path} not found.")
         return
