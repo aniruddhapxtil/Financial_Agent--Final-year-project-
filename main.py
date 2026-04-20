@@ -23,6 +23,7 @@
 
 # load_dotenv()
 
+
 # # =========================
 # # Automatic Multi-Ticker Detection
 # # =========================
@@ -74,12 +75,12 @@
 # # LLM Configuration
 # # =========================
 # llm = LLM(
-#     model="meta/llama3-70b-instruct",
+#     model="meta/llama-3.3-70b-instruct",
 #     api_key=os.getenv("NVIDIA_API_KEY"),
 #     base_url="https://integrate.api.nvidia.com/v1",
 #     provider="openai",
 #     temperature=0,
-#     max_tokens=1024 #change to 1024 when not doing evaltion
+#     max_tokens=2048 #change to 1024 when not doing evaltion
 # )
 
 # # =========================
@@ -90,6 +91,7 @@
 #     goal="Analyze {ticker} financial health",
 #     backstory="Expert in valuation and financial metrics.",
 #     tools=[fetch_stock_data],
+#     max_rpm=5, #added for evaluation only
 #     llm=llm
 # )
 
@@ -98,6 +100,7 @@
 #     goal="Analyze sentiment from latest headlines for {ticker}",
 #     backstory="Tracks market-moving news.",
 #     tools=[fetch_news_and_sentiment],
+#     max_rpm=5, #added for evaluation only
 #     llm=llm
 # )
 
@@ -106,6 +109,7 @@
 #     goal="Assess market risk for {ticker}",
 #     backstory="Specialist in volatility and correlations.",
 #     tools=[fetch_risk_metrics],
+#     max_rpm=5, #added for evaluation only
 #     llm=llm
 # )
 
@@ -509,7 +513,8 @@
 #     return result, debug_data
     
 
-
+#with cache toggle
+#new UI bug edit code...
 import os
 import time
 import re
@@ -522,21 +527,8 @@ from crewai import Agent, Task, Crew, Process, LLM
 from langgraph.graph import StateGraph, END, add_messages
 from rapidfuzz import fuzz
 from langsmith import traceable
-from concurrent.futures import ThreadPoolExecutor
 
-# =========================
-# CONFIG FLAGS
-# =========================
-USE_PARALLEL = False   # Toggle ON/OFF ,
-USE_CACHE = True      # Toggle ON/OFF
-CACHE = {}
-
-LAST_CALL_TIME = 0
-MIN_DELAY = 1.5  # seconds
-
-# =========================
 # Import tools
-# =========================
 from tools import (
     fetch_stock_data,
     fetch_news_and_sentiment,
@@ -547,43 +539,25 @@ from tools import (
 load_dotenv()
 
 # =========================
-# CACHE WRAPPER
+# CACHE CONFIG
 # =========================
-def cached_call(key, func):
-    global LAST_CALL_TIME
+USE_CACHE = True
+CACHE = {}
 
+def cached_call(key, func):
     if not USE_CACHE:
         return func()
 
     if key in CACHE:
         return CACHE[key]
 
-    # ✅ RATE LIMIT
-    now = time.time()
-    elapsed = now - LAST_CALL_TIME
-    if elapsed < MIN_DELAY:
-        time.sleep(MIN_DELAY - elapsed)
-
     result = func()
-    LAST_CALL_TIME = time.time()
-
     CACHE[key] = result
     return result
 
 # =========================
-# EXECUTION HELPER
+# Automatic Multi-Ticker Detection
 # =========================
-def execute_tasks(tickers, func):
-    if USE_PARALLEL:
-        with ThreadPoolExecutor(max_workers=min(3, len(tickers))) as executor:
-            return list(executor.map(func, tickers))
-    else:
-        return [func(t) for t in tickers]
-
-# =========================
-# (UNCHANGED BELOW)
-# =========================
-
 def extract_tickers(query: str) -> List[str]:
 
     query_lower = query.lower()
@@ -615,6 +589,9 @@ def extract_tickers(query: str) -> List[str]:
     return tickers
 
 
+# =========================
+# Response Formatter
+# =========================
 def clean_markdown(text: str) -> str:
 
     text = str(text)
@@ -625,20 +602,27 @@ def clean_markdown(text: str) -> str:
     return text.strip()
 
 
+# =========================
+# LLM Configuration
+# =========================
 llm = LLM(
-    model="meta/llama-3.1-70b-instruct",
+    model="meta/llama-3.3-70b-instruct",
     api_key=os.getenv("NVIDIA_API_KEY"),
     base_url="https://integrate.api.nvidia.com/v1",
     provider="openai",
     temperature=0,
-    max_tokens=512 #1024 for demo,512 or 300 for evaluaton time to reduce latency
+    max_tokens=1024
 )
 
+# =========================
+# Agents
+# =========================
 fin_analyst = Agent(
     role="Senior Financial Analyst",
     goal="Analyze {ticker} financial health",
     backstory="Expert in valuation and financial metrics.",
     tools=[fetch_stock_data],
+    max_rpm=5,
     llm=llm
 )
 
@@ -647,6 +631,7 @@ news_analyst = Agent(
     goal="Analyze sentiment from latest headlines for {ticker}",
     backstory="Tracks market-moving news.",
     tools=[fetch_news_and_sentiment],
+    max_rpm=5,
     llm=llm
 )
 
@@ -655,17 +640,21 @@ risk_analyst = Agent(
     goal="Assess market risk for {ticker}",
     backstory="Specialist in volatility and correlations.",
     tools=[fetch_risk_metrics],
+    max_rpm=5,
     llm=llm
 )
 
 rag_agent = Agent(
     role="Document Intelligence Agent",
-    goal="Answer user questions by reading and analyzing uploaded documents",
-    backstory="Expert financial document analyst.",
+    goal="Answer user questions by reading and analyzing uploaded documents, extracting relevant information and providing accurate answers based solely on document content",
+    backstory="Expert financial document analyst skilled at extracting insights from PDFs, text files, and reports.",
     tools=[read_uploaded_document],
     llm=llm
 )
 
+# =========================
+# Graph State
+# =========================
 class GraphState(TypedDict):
     query: str
     tickers: List[str]
@@ -674,9 +663,11 @@ class GraphState(TypedDict):
     outputs: Annotated[List[str], add_messages]
 
 
+# =========================
+# Intent Detection
+# =========================
 def fuzzy_contains(query: str, keywords: list) -> bool:
     return any(fuzz.partial_ratio(query.lower(), kw) > 70 for kw in keywords)
-
 
 financial_keywords = [
     "financial", "valuation", "revenue", "profit", "income",
@@ -687,6 +678,7 @@ financial_keywords = [
     "should i buy", "should i invest", "is it a good investment",
     "long term", "short term", "analysis"
 ]
+
 
 news_keywords = [
     "news", "headline", "headlines", "sentiment",
@@ -708,7 +700,9 @@ risk_keywords = [
     "exposure", "sensitivity"
 ]
 
-
+# =========================
+# Orchestrator
+# =========================
 def orchestrator_node(state: GraphState):
 
     q = state["query"].lower()
@@ -732,35 +726,29 @@ def orchestrator_node(state: GraphState):
     return {"routes": routes}
 
 
-# =========================
-# FINANCIAL NODE (PROMPT SAME)
-# =========================
+from concurrent.futures import ThreadPoolExecutor
+
 @traceable(name="Financial Node")
 def financial_node(state: GraphState):
-
     start = time.time()
 
     def run_task(ticker):
 
-        # ✅ FIXED: proper indentation
         is_comparison = len(state["tickers"]) > 1
-        comparison_context = (
-            f"This is a comparative analysis alongside: {', '.join([t for t in state['tickers'] if t != ticker])}."
-            if is_comparison else ""
-        )
+        comparison_context = f"This is a comparative analysis alongside: {', '.join([t for t in state['tickers'] if t != ticker])}." if is_comparison else ""
 
         def task_logic():
             task = Task(
-                description=f""" Use the provided financial tool data to analyze {ticker}.
-{comparison_context}
+                description=f"""Use the provided financial tool data to analyze {ticker}.
+ {comparison_context}
 
  STRICT RULES:
-- Use tool output only.
-- Do NOT invent numbers.
-- If missing → "Data not available".
-- If this is a comparison, ensure the metrics are clearly presented for side-by-side reading.
+ - Use tool output only.
+ - Do NOT invent numbers.
+ - If missing → "Data not available".
+ - If this is a comparison, ensure the metrics are clearly presented for side-by-side reading.
 
-Return:
+ Return:
 
  ## {ticker} Financial Summary
 
@@ -776,8 +764,9 @@ Return:
  ### Key Insights
  - 3 bullet points (focus on relative strength if comparing)
 
-### Investment Outlook
- 3-4 lines""",
+ ### Investment Outlook
+ 3-4 lines
+...""",
                 expected_output="Structured financial markdown report",
                 agent=fin_analyst
             )
@@ -792,19 +781,14 @@ Return:
 
             return crew.kickoff(inputs={"ticker": ticker})
 
-        result = cached_call(f"fin_{ticker}_{state['query']}", task_logic)
+        result = cached_call(f"fin_{ticker}", task_logic)
         return f"### {ticker}\n{clean_markdown(result)}"
 
-    results = execute_tasks(state["tickers"], run_task)
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(run_task, state["tickers"]))
 
-    return {
-        "outputs": ["\n\n".join(results)],
-        "debug": {"latency": round(time.time() - start, 2)}
-    }
+    return {"outputs": ["\n\n".join(results)]}
 
-# =========================
-# NEWS NODE (UNCHANGED PROMPT)
-# =========================
 @traceable(name="News Node")
 def news_node(state: GraphState):
 
@@ -814,20 +798,22 @@ def news_node(state: GraphState):
 
         def task_logic():
             task = Task(
-                description=f""" Analyze latest news for {ticker}.
+                description=f"""
+Analyze latest news for {ticker}.
 
- Return:
+Return:
 
- ## {ticker} News Sentiment
+## {ticker} News Sentiment
 
- ### Top Headlines
- - 3 headlines
+### Top Headlines
+- 3 headlines
 
- ### Overall Sentiment
- Bullish / Neutral / Bearish
+### Overall Sentiment
+Bullish / Neutral / Bearish
 
- ### Key Impact
- Short explanation""",
+### Key Impact
+Short explanation
+""",
                 expected_output="News sentiment report",
                 agent=news_analyst
             )
@@ -842,20 +828,23 @@ def news_node(state: GraphState):
 
             return crew.kickoff(inputs={"ticker": ticker})
 
-        result = cached_call(f"news_{ticker}_{state['query']}", task_logic)
+        result = cached_call(f"news_{ticker}", task_logic)
+
         return f"### {ticker}\n{clean_markdown(result)}"
 
-    results = execute_tasks(state["tickers"], run_task)
+    # 🔥 PARALLEL EXECUTION
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        results = list(executor.map(run_task, state["tickers"]))
 
     return {
-        "outputs": ["\n\n".join(results)],
-        "debug": {"latency": round(time.time() - start, 2)}
+        "outputs": [
+            "\n\n".join(results)
+        ],
+        "debug": {
+            "agent": "news",
+            "latency": round(time.time() - start, 2)
+        }
     }
-
-
-# =========================
-# RISK NODE (UNCHANGED)
-# =========================
 @traceable(name="Risk Node")
 def risk_node(state: GraphState):
 
@@ -865,34 +854,36 @@ def risk_node(state: GraphState):
 
         def task_logic():
             task = Task(
-                description=f""" Assess investment risk for {ticker}.
+                description=f"""
+Assess investment risk for {ticker}.
 
- Return:
+Return:
 
- ## {ticker} Risk Assessment
+## {ticker} Risk Assessment
 
- **Beta:**  
- **Volatility:**
+**Beta:**  
+**Volatility:**
 
- ### Risk Insights
- - 2 points
+### Risk Insights
+- 2 points
 
- ### Overall Risk Level
- Low / Medium / High
+### Overall Risk Level
+Low / Medium / High
 
- ### Investment Recommendation
- Buy / Sell / Hold
+### Investment Recommendation
+Buy / Sell / Hold
 
- ### Reasoning
- - 2 short bullet points explaining the recommendation
+### Reasoning
+- 2 short bullet points explaining the recommendation
 
- STRICT RULES:
- - Recommendation must be consistent with risk level
-     - Low risk → Buy or Hold
-     - Medium risk → Hold
-     - High risk → Sell or cautious Hold
- - Do NOT invent numbers
- - Base reasoning ONLY on tool output""",
+STRICT RULES:
+- Recommendation must be consistent with risk level
+    - Low risk → Buy or Hold
+    - Medium risk → Hold
+    - High risk → Sell or cautious Hold
+- Do NOT invent numbers
+- Base reasoning ONLY on tool output
+""",
                 expected_output="Risk analysis report",
                 agent=risk_analyst
             )
@@ -907,20 +898,24 @@ def risk_node(state: GraphState):
 
             return crew.kickoff(inputs={"ticker": ticker})
 
-        result = cached_call(f"risk_{ticker}_{state['query']}", task_logic)
+        result = cached_call(f"risk_{ticker}", task_logic)
+
         return f"### {ticker}\n{clean_markdown(result)}"
 
-    results = execute_tasks(state["tickers"], run_task)
+    # 🔥 PARALLEL EXECUTION
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        results = list(executor.map(run_task, state["tickers"]))
 
     return {
-        "outputs": ["\n\n".join(results)],
-        "debug": {"latency": round(time.time() - start, 2)}
+        "outputs": [
+            "\n\n".join(results)
+        ],
+        "debug": {
+            "agent": "risk",
+            "latency": round(time.time() - start, 2)
+        }
     }
 
-
-# =========================
-# RAG NODE (UNCHANGED)
-# =========================
 @traceable(name="RAG Node")
 def rag_node(state: GraphState):
 
@@ -928,19 +923,21 @@ def rag_node(state: GraphState):
 
     def task_logic():
         task = Task(
-            description=f""" You are a document analysis expert. You MUST use the read_uploaded_document tool to read the uploaded file(s) and extract relevant information.
+            description=f"""
+You are a document analysis expert. You MUST use the read_uploaded_document tool to read the uploaded file(s) and extract relevant information.
 
-# Query: {state['query']}
+Query: {state['query']}
 
-# Instructions:
-# 1. First, use the read_uploaded_document tool with file path: {state['doc_path']}
-# 2. Read and analyze the document content carefully
-# 3. Answer the question STRICTLY based on the document content
-# 4. If the answer is not found in the document, say "This information is not available in the uploaded documents"
-# 5. Always cite which document(s) you're referencing in your answer
+Instructions:
+1. First, use the read_uploaded_document tool with file path: {state['doc_path']}
+2. Read and analyze the document content carefully
+3. Answer the question STRICTLY based on the document content
+4. If the answer is not found in the document, say "This information is not available in the uploaded documents"
+5. Always cite which document(s) you're referencing in your answer
 
-# Format your response in clear markdown sections.""",
-            expected_output="Detailed answer",
+Format your response in clear markdown sections.
+""",
+            expected_output="Detailed answer based on document content with citations",
             agent=rag_agent
         )
 
@@ -956,13 +953,17 @@ def rag_node(state: GraphState):
     result = cached_call(f"rag_{state['query']}", task_logic)
 
     return {
-        "outputs": [clean_markdown(result)],
-        "debug": {"latency": round(time.time() - start, 2)}
+        "outputs": [
+            clean_markdown(result)
+        ],
+        "debug": {
+            "agent": "rag",
+            "latency": round(time.time() - start, 2)
+        }
     }
 
-
 # =========================
-# GRAPH + RUN (UNCHANGED)
+# Workflow + Run
 # =========================
 workflow = StateGraph(GraphState)
 
@@ -973,7 +974,6 @@ workflow.add_node("risk", risk_node)
 workflow.add_node("rag", rag_node)
 
 workflow.set_entry_point("orchestrator")
-
 workflow.add_conditional_edges("orchestrator", lambda s: s["routes"])
 
 workflow.add_edge("financial", END)
