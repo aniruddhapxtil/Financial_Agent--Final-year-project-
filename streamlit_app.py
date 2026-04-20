@@ -917,7 +917,7 @@ def main_chat_screen():
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("➕ New Chat"):
+            if st.button("➕ New "):
                 chat_id = db.create_chat(st.session_state.username)
                 st.session_state.current_chat_id = chat_id
                 st.session_state.chat_history = []
