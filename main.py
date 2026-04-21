@@ -541,7 +541,7 @@ load_dotenv()
 # =========================
 # CACHE CONFIG
 # =========================
-USE_CACHE = False  #change this true for on cache, else false ......
+USE_CACHE = True #change this true for on cache, else false ......
 CACHE = {}
 
 def cached_call(key, func):

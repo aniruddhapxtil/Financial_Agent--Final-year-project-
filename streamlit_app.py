@@ -1160,29 +1160,65 @@ def dashboard_screen():
 
         import plotly.graph_objects as go
 
-        # =========================
-        # 🎯 ACCURACY CHART (GREEN)
-        # =========================
-        fig_acc = go.Figure(go.Bar(
-            x=["Accuracy"],
-            y=[res["accuracy"] * 100],
-            marker_color="green"
-        ))
-        fig_acc.update_layout(title="Accuracy (%)")
+        # # =========================
+        # # 🎯 ACCURACY CHART (GREEN)
+        # # =========================
+        # fig_acc = go.Figure(go.Bar(
+        #     x=["Accuracy"],
+        #     y=[res["accuracy"] * 100],
+        #     marker_color="green"
+        # ))
+        # fig_acc.update_layout(title="Accuracy (%)")
 
-        st.plotly_chart(fig_acc, use_container_width=True)
+        # st.plotly_chart(fig_acc, use_container_width=True)
+
+        accuracy_list = res.get("accuracy_list", [])
+
+        if accuracy_list:
+            df_acc = pd.DataFrame({
+                "Question": range(1, len(accuracy_list) + 1),
+                "Accuracy": [x * 100 for x in accuracy_list]
+            })
+
+            fig_acc = px.line(
+                df_acc,
+                x="Question",
+                y="Accuracy",
+                markers=True,
+                title="Accuracy per Question (%)"
+            )
+
+            st.plotly_chart(fig_acc, use_container_width=True)
 
         # =========================
         # ⏱ LATENCY CHART (BLUE)
         # =========================
-        fig_lat = go.Figure(go.Bar(
-            x=["Avg Latency"],
-            y=[res["avg_latency"]],
-            marker_color="blue"
-        ))
-        fig_lat.update_layout(title="Average Latency (sec)")
+        # fig_lat = go.Figure(go.Bar(
+        #     x=["Avg Latency"],
+        #     y=[res["avg_latency"]],
+        #     marker_color="blue"
+        # ))
+        # fig_lat.update_layout(title="Average Latency (sec)")
 
-        st.plotly_chart(fig_lat, use_container_width=True)
+        # st.plotly_chart(fig_lat, use_container_width=True)
+
+        latency_list = res.get("latencies", [])
+
+        if latency_list:
+            df_lat = pd.DataFrame({
+                "Question": range(1, len(latency_list) + 1),
+                "Latency": latency_list
+            })
+
+            fig_lat = px.line(
+                df_lat,
+                x="Question",
+                y="Latency",
+                markers=True,
+                title="Latency per Question (sec)"
+            )
+
+            st.plotly_chart(fig_lat, use_container_width=True)
 
         # =========================
         # 🧠 FINANCIAL SCORE PIE (COLOR CODED)

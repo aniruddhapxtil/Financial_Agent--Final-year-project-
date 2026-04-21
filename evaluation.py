@@ -338,6 +338,7 @@ def evaluate_system(dataset_path: str = "eval_dataset_demo.json"):
     results_for_csv = []
     financial_scores = []
     latencies = []
+    accuracy_list = []   # NEW
 
     difficulty_stats = {
         "easy": {"total": 0, "correct": 0},
@@ -419,8 +420,17 @@ def evaluate_system(dataset_path: str = "eval_dataset_demo.json"):
                 financial_scores.append(fin_score)
                 print(f"   Financial Score: {fin_score}/5")
 
+            # is_prompt_correct = (local_correct == local_total) if local_total > 0 else True
+            # if is_prompt_correct: correct += 1
+            # total += 1
             is_prompt_correct = (local_correct == local_total) if local_total > 0 else True
-            if is_prompt_correct: correct += 1
+
+            # store per-question accuracy
+            accuracy_list.append(1 if is_prompt_correct else 0)
+
+            if is_prompt_correct:
+                correct += 1
+
             total += 1
 
             difficulty_stats[difficulty]["total"] += 1
@@ -455,14 +465,15 @@ def evaluate_system(dataset_path: str = "eval_dataset_demo.json"):
     export_evaluation_report(results_for_csv)
 
     return {
-        "accuracy": accuracy,
-        "avg_latency": avg_latency,
-        "financial_score": avg_financial_score,
-        "financial_scores_list": financial_scores,
-        "latencies": latencies,
-        "difficulty_stats": difficulty_stats,
-        "detailed_results": results_for_csv
-    }
+    "accuracy": accuracy,
+    "avg_latency": avg_latency,
+    "financial_score": avg_financial_score,
+    "financial_scores_list": financial_scores,
+    "latencies": latencies,
+    "accuracy_list": accuracy_list,
+    "difficulty_stats": difficulty_stats,
+    "detailed_results": results_for_csv
+}
 
 if __name__ == "__main__":
     evaluate_system()
